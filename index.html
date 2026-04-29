@@ -1,0 +1,13 @@
+<!DOCTYPE html><html lang='es'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>LCD Terminal</title>
+<style>
+:root{--on:#39ff72;--off:#26303a;--bg:#05090f;--w:28px;--h:46px;--t:4px;--g:2px}*{box-sizing:border-box}
+body{margin:0;background:#02050a;display:flex;justify-content:center;align-items:center;height:100vh;font-family:Consolas,monospace}
+.wrap{width:min(1360px,98vw);height:min(880px,98vh);display:grid;grid-template-rows:auto 1fr;gap:8px}
+#kbBtn{background:#0d1420;color:#bafcca;border:1px solid #2b3950;border-radius:6px;padding:6px 10px;width:fit-content}
+.display{border:1px solid #2b3950;border-radius:10px;padding:10px;background:var(--bg);display:grid;place-items:center;overflow:auto}
+.grid{display:grid;grid-template-columns:repeat(32,var(--w));grid-template-rows:repeat(12,var(--h));gap:var(--g)}
+.cell{width:var(--w);height:var(--h);display:grid;grid-template-columns:var(--t) 1fr var(--t);grid-template-rows:var(--t) 1fr var(--t) 1fr var(--t);background:#0c1219;border-radius:3px;padding:1px}
+.seg{background:var(--off);opacity:.45;border-radius:4px}.on{background:var(--on);opacity:.95;box-shadow:0 0 3px var(--on)}
+.a{grid-column:2;grid-row:1}.b{grid-column:3;grid-row:2}.c{grid-column:3;grid-row:4}.d{grid-column:2;grid-row:5}.e{grid-column:1;grid-row:4}.f{grid-column:1;grid-row:2}.g{grid-column:2;grid-row:3}
+</style></head><body><div class='wrap'><button id='kbBtn'>Activar teclado</button><input id='kbInput' type='text' autocapitalize='characters' autocomplete='off' autocorrect='off' spellcheck='false' inputmode='text' style='position:absolute;left:-9999px;opacity:0'><div class='display' id='display' tabindex='0'><div class='grid' id='grid'></div></div></div>
+<script src='app.js'></script></body></html>
