@@ -21,5 +21,8 @@ t('Nested CALL/RET works within depth',()=>{const m=mkVM();m.maxDepth=8;m.load("
 
 t('Invalid transitions blocked',()=>{const m=mkVM();if(m.signal('CONT')!==false)throw new Error('should reject CONT from IDLE');});
 
+
+t('Journal recovery removes temp artifacts',()=>{const f=new VFS();f.db.files['/app/x.tmp']='123';f.db.meta['/app/x.tmp']={};f.db.journal.push({op:'WRITE_BEGIN',path:'/app/x'});f.recoverJournal();if('/app/x.tmp' in f.db.files)throw new Error('tmp not recovered');});
+
 console.log(`RESULT intensive ${pass} passed ${fail} failed`);
 if(fail) process.exit(1);

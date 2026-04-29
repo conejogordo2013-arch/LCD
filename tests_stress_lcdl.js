@@ -14,4 +14,13 @@ t('Watchdog trips',()=>{const m=new VM({ui:{status:()=>{},row:()=>{},print:()=>{
 t('FOR/NEXT loop',()=>{const m=new VM({ui:{status:()=>{},row:()=>{},print:()=>{}},parser:new Parser(),fs:new VFS()});m.load('LET S:NUM = 0\nFOR I = 1 TO 5 STEP 1\nSET S = S + I\nNEXT I\nSTOP');m.step(200);if(m.vars.S!==15)throw new Error('S!=15')});
 t('WRITE/READ/TIME commands',()=>{const logs=[];const ui={status:()=>{},row:()=>{},print:(x)=>logs.push(String(x))};const f=new VFS();const m=new VM({ui,parser:new Parser(),fs:f});m.load("WRITE('K1',123)\nREAD('K1')\nTIME\nSTOP");m.step(100);if(!logs.some(x=>x.includes('123')))throw new Error('read missing');if(!logs.some(x=>/^\d+$/.test(x)))throw new Error('time missing');});
 
+
+t('Preprocessor define/ifdef/include',()=>{const f=new VFS();f.writeAtomic('/app/inc.lcdl',"LET B:NUM = 2");const parser=new Parser(f);const m=new VM({ui:{status:()=>{},row:()=>{},print:()=>{}},parser,fs:f});m.load("@DEFINE FEAT 1\n@IFDEF FEAT\nLET A:NUM = 1\n@ENDIF\n@INCLUDE '/app/inc.lcdl'\nSET A = A + B\nSTOP");m.step(100);if(m.vars.A!==3)throw new Error('pp fail');});
+
+
+t('Math ops + arrays',()=>{const m=new VM({ui:{status:()=>{},row:()=>{},print:()=>{}},parser:new Parser(),fs:new VFS()});m.load("LET A:NUM = 10\nADD A,5\nMUL A,2\nDIV A,3\nMOD A,4\nLET ARR:ARR = 0\nAPUSH ARR,'X'\nAPUSH ARR,'Y'\nALEN ARR,LN\nAGET ARR,1,OUT\nSTOP");m.step(300);if(m.vars.A!==2)throw new Error('math');if(m.vars.LN!==2)throw new Error('alen');if(m.vars.OUT!=='Y')throw new Error('aget');});
+
+
+t('Include .lcdh header',()=>{const f=new VFS();f.writeAtomic('/app/h.lcdh',"LET K:NUM = 7");const parser=new Parser(f);const m=new VM({ui:{status:()=>{},row:()=>{},print:()=>{}},parser,fs:f});m.load("@INCLUDE '/app/h.lcdh'\nSET K = K + 1\nSTOP");m.step(50);if(m.vars.K!==8)throw new Error('lcdh include');});
+
 console.log(`RESULT ${pass} passed ${fail} failed`);if(fail) process.exit(1);
