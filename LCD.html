@@ -1,287 +1,260 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Generador 7 Segmentos - Profesional Corregido</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Plataforma Embebida en Navegador</title>
 <style>
-body { font-family: sans-serif; background:#111; color:#eee; text-align:center; padding:20px; }
-.screen-container { border:1px solid #444; padding:10px; margin:10px 0; background:#222; border-radius:8px; }
-.display-row{display:flex; justify-content:center; flex-wrap:wrap; margin:10px 0;}
-.display{position:relative; width:50px; height:100px; margin:5px; cursor:pointer;}
-.segment{position:absolute; background:#333; border-radius:5px; transition:0.2s;}
-.segment.on{background:#0f0;}
-.a{top:0; left:10px; width:30px; height:8px;}
-.b{top:8px; right:0; width:8px; height:38px;}
-.c{bottom:8px; right:0; width:8px; height:38px;}
-.d{bottom:0; left:10px; width:30px; height:8px;}
-.e{bottom:8px; left:0; width:8px; height:38px;}
-.f{top:8px; left:0; width:8px; height:38px;}
-.g{top:46px; left:10px; width:30px; height:8px;}
-button{margin:2px;}
-input[type=range]{width:200px;}
+body{font-family:Arial,sans-serif;background:#101214;color:#e9e9e9;margin:0;padding:12px}
+button,input,select,textarea{background:#1c1f24;color:#e9e9e9;border:1px solid #444;border-radius:6px}
+button{padding:6px 10px;cursor:pointer} label{font-size:12px}
+.layout{display:grid;grid-template-columns:2fr 1.2fr;gap:12px}
+.panel{background:#171a1f;border:1px solid #333;border-radius:10px;padding:10px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.display-row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+.display{position:relative;width:52px;height:100px}
+.segment{position:absolute;background:#252a33;border-radius:4px;transition:80ms linear}
+.segment.on{background:#39ff6d;box-shadow:0 0 6px #39ff6d}
+.a{top:0;left:10px;width:32px;height:8px}.b{top:8px;right:0;width:8px;height:38px}.c{bottom:8px;right:0;width:8px;height:38px}
+.d{bottom:0;left:10px;width:32px;height:8px}.e{bottom:8px;left:0;width:8px;height:38px}.f{top:8px;left:0;width:8px;height:38px}.g{top:46px;left:10px;width:32px;height:8px}
+textarea{width:100%;height:260px;font-family:ui-monospace,monospace}
+pre{background:#0d0f12;padding:8px;overflow:auto;max-height:200px}
+.keypad{display:grid;grid-template-columns:repeat(3,44px);gap:6px;justify-content:center}
+.key{padding:8px;text-align:center;background:#2b313b;border:1px solid #555;border-radius:6px;user-select:none}
+.key.active{background:#515f73}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.small{font-size:12px;color:#adb5bd}
+.syntax .kw{color:#6cb6ff}.syntax .fn{color:#7ee787}.syntax .num{color:#f2cc60}.syntax .cm{color:#8b949e}
+@media (max-width:980px){.layout{grid-template-columns:1fr}.two{grid-template-columns:1fr}.row{gap:6px}.panel{padding:8px}}
+@media (max-width:560px){body{padding:8px}textarea{height:220px}.display{width:42px;height:82px}.a,.d,.g{left:8px;width:26px}.b,.c,.e,.f{height:30px}}
 </style>
 </head>
 <body>
-<h1>Generador 7 Segmentos Profesional - Corregido</h1>
-<button id="addScreenBtn">Agregar Pantalla</button>
-<button id="generateAllBtn">Generar .ino Combinado</button>
-<div id="allScreens"></div>
+<h2>IDE Embebido: MCU + Display + Keypad + Debugger</h2>
+<div class="layout">
+  <div class="panel">
+    <div class="row">
+      <button id="addScreenBtn">Agregar Pantalla</button>
+      <button id="compileBtn">Compilar y Ejecutar</button>
+      <button id="pauseBtn">Pausa</button>
+      <button id="runBtn">Run</button>
+      <button id="stepInstrBtn">Step Instr</button>
+      <button id="stepFuncBtn">Step Func</button>
+      <label>Clock Hz <input id="clockHz" type="range" min="1" max="1200" value="300"></label><span id="hzv">300</span>
+    </div>
+    <div class="row">
+      <button id="saveProgramBtn">Guardar Programa</button><button id="loadProgramBtn">Cargar Programa</button>
+      <button id="exportProgramsBtn">Exportar JSON</button><button id="importProgramsBtn">Importar JSON</button>
+      <select id="examples"><option value="">Ejemplos...</option><option value="counter">Contador</option><option value="pin">Ingreso PIN</option><option value="anim">Animación</option></select>
+    </div>
+    <textarea id="codeEditor">#include <lcd.h>
+#include <keypad.h>
+#include <time.h>
+#include <cchar.h>
 
-<script>
-const allScreens = document.getElementById('allScreens');
-let screenCount = 0;
+int counter = 0;
 
-const defaultSegments = {
-'0':['a','b','c','d','e','f'],'1':['b','c'],'2':['a','b','g','e','d'],'3':['a','b','g','c','d'],
-'4':['f','g','b','c'],'5':['a','f','g','c','d'],'6':['a','f','g','c','d','e'],'7':['a','b','c'],
-'8':['a','b','c','d','e','f','g'],'9':['a','b','c','d','f','g'],'A':['a','b','c','e','f','g'],
-'B':['c','d','e','f','g'],'C':['a','d','e','f'],'D':['b','c','d','e','g'],'E':['a','d','e','f','g'],
-'F':['a','e','f','g'],'G':['a','c','d','e','f'],'H':['b','c','e','f','g'],'I':['b','c'],'J':['b','c','d'],
-'L':['d','e','f'],'O':['a','b','c','d','e','f'],'P':['a','b','e','f','g'],'S':['a','c','d','f','g'],
-'U':['b','c','d','e','f'],'-':['g'],'_':['d'],':':['b','c'],' ':[]
-};
+void setup(){ lcd_init(); keypad_init(); }
+void onTimer(){ }
+void onKeyPress(char key){ }
 
-function createScreen(id){
-  const container=document.createElement('div');
-  container.classList.add('screen-container');
-  container.dataset.screenId=id;
-  container.innerHTML=`
-<h3>Pantalla ${id}</h3>
-<div class="controls">
-<label>Texto: <input type="text" class="inputText" maxlength="15" value="123"></label>
-<label>Ancho: <input type="number" class="screenWidth" min="1" max="15" value="3"></label>
-<label>Multiplexion: <input type="number" class="multiplexLevel" min="1" max="10" value="1"></label><br>
-<label>Delay dígito(ms): <input type="range" class="digitDelaySlider" min="0" max="100" value="2"><span class="digitDelayValue">2</span>
-<input type="checkbox" class="disableDigitDelay"> Desactivar</label>
-<label>Delay pantalla(ms): <input type="range" class="screenDelaySlider" min="0" max="60000" value="0"><span class="screenDelayValue">0</span>
-<input type="checkbox" class="disableScreenDelay"> Desactivar</label><br>
-<button class="createBtn">Crear Pantalla</button>
-<button class="incrementBtn">+</button>
-<button class="decrementBtn">-</button>
-<button class="saveBtn">Guardar Config</button>
-<input type="file" class="loadFile" style="display:none">
-<button class="loadBtn">Cargar Config</button>
-<button class="generateBtn">Generar .ino Pantalla</button>
+void loop(){
+  lcd_print(counter);
+  counter = counter + 1;
+  delay(120);
+}</textarea>
+    <pre id="syntax" class="syntax"></pre>
+    <div class="two">
+      <div><h4>Compilación</h4><pre id="compileConsole"></pre></div>
+      <div><h4>Runtime</h4><pre id="runtimeConsole"></pre></div>
+    </div>
+    <div id="screens"></div>
+  </div>
+  <div class="panel">
+    <h4>Hardware / OS / Debug</h4>
+    <div class="small">Breakpoints (PC separados por coma):</div><input id="breakpoints" placeholder="ej. 4,12,30"/>
+    <div class="two">
+      <div><strong>Registros</strong><pre id="regs"></pre></div>
+      <div><strong>Stack</strong><pre id="stack"></pre></div>
+      <div><strong>Memoria HEX</strong><pre id="mem"></pre></div>
+      <div><strong>Pines</strong><pre id="pins"></pre></div>
+    </div>
+    <h4>Teclado Matricial</h4>
+    <div id="keypad" class="keypad"></div>
+  </div>
 </div>
-<div class="screenContainer"></div>
-`;
+<script>
+(()=>{
+const SEG=['a','b','c','d','e','f','g'];
+const FONT={'0':['a','b','c','d','e','f'],'1':['b','c'],'2':['a','b','d','e','g'],'3':['a','b','c','d','g'],'4':['b','c','f','g'],'5':['a','c','d','f','g'],'6':['a','c','d','e','f','g'],'7':['a','b','c'],'8':['a','b','c','d','e','f','g'],'9':['a','b','c','d','f','g'],' ':[],'-':['g']};
+const byId=(id)=>document.getElementById(id);
 
-allScreens.appendChild(container);
-
-const screenObj={id,container,displays:[],counter:0,customChars:{}};
-const c=container;
-const inputText=c.querySelector('.inputText');
-const screenWidth=c.querySelector('.screenWidth');
-const multiplex=c.querySelector('.multiplexLevel');
-const digitSlider=c.querySelector('.digitDelaySlider');
-const digitValueSpan=c.querySelector('.digitDelayValue');
-const screenSlider=c.querySelector('.screenDelaySlider');
-const screenValueSpan=c.querySelector('.screenDelayValue');
-const disableDigit=c.querySelector('.disableDigitDelay');
-const disableScreen=c.querySelector('.disableScreenDelay');
-const create=c.querySelector('.createBtn');
-const increment=c.querySelector('.incrementBtn');
-const decrement=c.querySelector('.decrementBtn');
-const save=c.querySelector('.saveBtn');
-const loadBtn=c.querySelector('.loadBtn');
-const loadFile=c.querySelector('.loadFile');
-const generate=c.querySelector('.generateBtn');
-const screenContainer=c.querySelector('.screenContainer');
-
-digitSlider.addEventListener('input',()=>{digitValueSpan.textContent=digitSlider.value;});
-screenSlider.addEventListener('input',()=>{screenValueSpan.textContent=screenSlider.value;});
-
-function createDisplays(width){
-  screenContainer.innerHTML='';
-  screenObj.displays=[];
-  const row=document.createElement('div'); row.classList.add('display-row');
-  for(let i=0;i<width;i++){
-    const display=document.createElement('div'); display.classList.add('display');
-    ['a','b','c','d','e','f','g'].forEach((cls,j)=>{
-      const seg=document.createElement('div'); seg.classList.add('segment',cls);
-      seg.addEventListener('click',()=>{
-        seg.classList.toggle('on');
-        const char=inputText.value[i]||' ';
-        screenObj.customChars[char]=screenObj.customChars[char]||[0,0,0,0,0,0,0];
-        screenObj.customChars[char][j]=seg.classList.contains('on')?1:0;
-        updateDisplays(inputText.value);
-      });
-      display.appendChild(seg);
-    });
-    row.appendChild(display);
-    screenObj.displays.push(display);
+// ===== HARDWARE LAYER =====
+class RAM{constructor(size=256){this.size=size;this.buf=new Uint8Array(size);}r(a){return this.buf[a%this.size]}w(a,v){this.buf[a%this.size]=v&255;}}
+class ROM{constructor(){this.program=[];}load(p){this.program=p;}}
+class Pins{constructor(n=64){this.p=Array.from({length:n},()=>({m:'IN',v:0}));}pinMode(x,m){this.p[x].m=m;}digitalWrite(x,v){if(this.p[x]) this.p[x].v=v?1:0;}digitalRead(x){return this.p[x]?this.p[x].v:0;}dump(){return this.p.map((x,i)=>`${i}:${x.m}:${x.v}`).slice(0,40).join(' ');}}
+class TimerController{constructor(){this.t=[];}create(period,isr){this.t.push({period,next:0,isr});}tick(ms,cpu){for(const t of this.t){if(ms>=t.next){t.next=ms+t.period;cpu.raiseInterrupt({type:'timer',handler:t.isr});}}}}
+class InterruptController{constructor(){this.q=[];}push(ev){this.q.push(ev);}pop(){return this.q.shift();}}
+class CPU{
+  constructor(ram,rom,ic){this.ram=ram;this.rom=rom;this.ic=ic;this.reset();}
+  reset(){this.reg=new Int32Array(8);this.pc=0;this.sp=240;this.flags={z:false};this.halted=false;this.call=[];this.currentFunc='global';}
+  raiseInterrupt(ev){this.ic.push(ev)}
+  step(ctx){if(this.halted) return;const intEv=this.ic.pop();if(intEv&&ctx.handlers[intEv.handler]!=null){this.call.push(this.pc);this.pc=ctx.handlers[intEv.handler];this.currentFunc=intEv.handler;}
+    const ins=this.rom.program[this.pc];if(!ins){this.halted=true;return;}this.pc++;
+    switch(ins.op){
+      case 'MOVI': this.reg[ins.r]=ins.v;break;
+      case 'LOAD': this.reg[ins.r]=this.ram.r(ins.a);break;
+      case 'STORE': this.ram.w(ins.a,this.reg[ins.r]);break;
+      case 'ADD': this.reg[ins.r]+=this.reg[ins.r2];this.flags.z=this.reg[ins.r]===0;break;
+      case 'ADDI': this.reg[ins.r]+=ins.v;this.flags.z=this.reg[ins.r]===0;break;
+      case 'CMPGTI': this.flags.z=!(this.reg[ins.r]>ins.v);break;
+      case 'JMP': this.pc=ins.to;break;
+      case 'JNZ': if(!this.flags.z) this.pc=ins.to;break;
+      case 'CJMP': {const x=this.reg[0];let cond=false; if(ins.cmp==='>')cond=x>ins.v; else if(ins.cmp==='>=')cond=x>=ins.v; else if(ins.cmp==='<')cond=x<ins.v; else if(ins.cmp==='<=')cond=x<=ins.v; else if(ins.cmp==='==')cond=x===ins.v; else if(ins.cmp==='!=')cond=x!==ins.v; if(cond) this.pc=ins.to; break;}
+      case 'CALL': this.call.push(this.pc);this.currentFunc=ins.fn||'anon';this.pc=ins.to;break;
+      case 'RET': this.pc=this.call.pop() ?? this.rom.program.length;this.currentFunc='return';break;
+      case 'API': ctx.api[ins.fn](...(ins.args||[]));break;
+    }
   }
-  screenContainer.appendChild(row);
 }
 
-function getSegmentStates(char){
-  if(screenObj.customChars[char]) return ['a','b','c','d','e','f','g'].filter((s,i)=>screenObj.customChars[char][i]);
-  return defaultSegments[char.toUpperCase()]||[];
-}
-
-function updateDisplays(text){
-  screenObj.displays.forEach((display,i)=>{
-    const char=text[i]||' ';
-    const segs=getSegmentStates(char);
-    display.querySelectorAll('.segment').forEach(seg=>seg.classList.remove('on'));
-    display.querySelectorAll('.segment').forEach(seg=>{if(segs.includes(seg.classList[1])) seg.classList.add('on');});
-  });
-}
-
-function displayCounter(){
-  let str=screenObj.counter.toString().padStart(screenObj.displays.length,'0');
-  updateDisplays(str);
-}
-
-let multiplexInterval=null;
-function startMultiplex(){
-  if(multiplexInterval) clearInterval(multiplexInterval);
-  let index=0;
-  multiplexInterval=setInterval(()=>{
-    if(disableDigit.checked) return;
-    screenObj.displays.forEach((d,i)=>d.style.opacity=(i===index?1:0.2));
-    index=(index+1)%screenObj.displays.length;
-  },parseInt(digitSlider.value)||1);
-}
-
-let screenInterval=null;
-function startScreenLoop(){
-  if(screenInterval) clearInterval(screenInterval);
-  screenInterval=setInterval(()=>{
-    if(!disableScreen.checked) updateDisplays(inputText.value);
-  },parseInt(screenSlider.value)||10);
-}
-
-create.addEventListener('click',()=>{
-  createDisplays(parseInt(screenWidth.value));
-  updateDisplays(inputText.value);
-  displayCounter();
-  startMultiplex();
-  startScreenLoop();
-});
-
-inputText.addEventListener('input',()=>updateDisplays(inputText.value));
-increment.addEventListener('click',()=>{screenObj.counter++; displayCounter();});
-decrement.addEventListener('click',()=>{screenObj.counter=Math.max(0,screenObj.counter-1); displayCounter();});
-
-save.addEventListener('click',()=>{
-  const data={text:inputText.value,width:parseInt(screenWidth.value),counter:screenObj.counter,
-multiplex:parseInt(multiplex.value),digitDelay:parseInt(digitSlider.value),screenDelay:parseInt(screenSlider.value),
-disableDigit:disableDigit.checked,disableScreen:disableScreen.checked,customChars:screenObj.customChars};
-  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`config_screen${screenObj.id}.json`; a.click();
-});
-
-loadBtn.addEventListener('click',()=>loadFile.click());
-loadFile.addEventListener('change',(e)=>{
-  const file=e.target.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    const data=JSON.parse(ev.target.result);
-    inputText.value=data.text;
-    screenWidth.value=data.width;
-    screenObj.counter=data.counter||0;
-    multiplex.value=data.multiplex||1;
-    digitSlider.value=data.digitDelay||2; digitValueSpan.textContent=digitSlider.value;
-    screenSlider.value=data.screenDelay||0; screenValueSpan.textContent=screenSlider.value;
-    disableDigit.checked=data.disableDigit||false;
-    disableScreen.checked=data.disableScreen||false;
-    screenObj.customChars=data.customChars||{};
-    createDisplays(data.width);
-    displayCounter();
-    startMultiplex();
-    startScreenLoop();
-  };
-  reader.readAsText(file);
-});
-
-generate.addEventListener('click',()=>{generateIno(screenObj);});
-
-function generateIno(screenObj){
-  const width=parseInt(screenObj.container.querySelector('.screenWidth').value);
-  const mux=parseInt(screenObj.container.querySelector('.multiplexLevel').value);
-  const digitD=parseInt(screenObj.container.querySelector('.digitDelaySlider').value);
-  const screenD=parseInt(screenObj.container.querySelector('.screenDelaySlider').value);
-  const disableDigit=screenObj.container.querySelector('.disableDigitDelay').checked;
-  const disableScreen=screenObj.container.querySelector('.disableScreenDelay').checked;
-  const inputText=screenObj.container.querySelector('.inputText').value;
-  const inoLines=[];
-  inoLines.push(`// Pantalla ${screenObj.id}, Multiplex x${mux}, Delay dígito ${disableDigit?0:digitD}ms, Delay pantalla ${disableScreen?0:screenD}ms`);
-  inoLines.push(`const int totalDisplays=${width};`);
-  inoLines.push(`const int segmentPins[7]={2,3,4,5,6,7,8};`);
-  inoLines.push(`const int digitPins[totalDisplays]={${Array.from({length:width},(_,i)=>9+i).join(',')}};`);
-  inoLines.push(`const int digitDelay=${disableDigit?0:digitD};`);
-  inoLines.push(`const int screenDelay=${disableScreen?0:screenD};`);
-  // Símbolos
-  const charsUsed=Array.from(new Set(inputText.split('').map(c=>c.toUpperCase())));
-  charsUsed.forEach(char=>{
-    const segs=['a','b','c','d','e','f','g'].map((s,i)=>screenObj.customChars[char]?.[i]|| (defaultSegments[char]?.includes(s)?1:0));
-    inoLines.push(`const byte char_${char}[7]={${segs.join(',')}};`);
-  });
-  // Displays
-  for(let i=0;i<width;i++){
-    const char=inputText[i]||' ';
-    const segs=['a','b','c','d','e','f','g'].map((s,j)=>screenObj.customChars[char]?.[j]|| (defaultSegments[char.toUpperCase()]?.includes(s)?1:0));
-    inoLines.push(`const byte display${i+1}[7]={${segs.join(',')}}; // ${char}`);
+// ===== FIRMWARE LAYER =====
+class HAL{constructor(pins){this.p=pins;}pinMode(a,m){this.p.pinMode(a,m)}digitalWrite(a,v){this.p.digitalWrite(a,v)}digitalRead(a){return this.p.digitalRead(a)}}
+class LCDDriver{
+  constructor(hal){this.hal=hal;this.screen=null;this.segmentPins=[2,3,4,5,6,7,8];this.digitPins=[];this.text='';this.muxHz=220;this.last=0;this.idx=0;this.custom={};}
+  bindScreen(screen){this.screen=screen;this.digitPins=Array.from({length:screen.width},(_,i)=>20+i);for(const p of this.segmentPins)this.hal.pinMode(p,'OUT');for(const p of this.digitPins)this.hal.pinMode(p,'OUT');}
+  lcd_init(){this.lcd_clear();}
+  lcd_clear(){this.text='';}
+  lcd_print(v){this.text=String(v)}
+  lcd_set_digit(i,c){const arr=this.text.padEnd(this.screen.width,' ').split('');arr[i]=c;this.text=arr.join('');}
+  lcd_raw(mask7){SEG.forEach((_,i)=>this.hal.digitalWrite(this.segmentPins[i],(mask7>>i)&1));}
+  cchar_define(ch,mask){this.custom[String(ch).charAt(0).toUpperCase()]=mask&127;}
+  getMask(ch){const c=(ch||' ').toUpperCase();if(this.custom[c]!=null)return this.custom[c];const segs=FONT[c]||[];let m=0;SEG.forEach((s,i)=>{if(segs.includes(s))m|=(1<<i)});return m;}
+  tick(now){if(!this.screen||this.digitPins.length===0)return;const step=1000/Math.max(1,this.muxHz);if(now-this.last<step)return;this.last=now;
+    const ch=(this.text[this.idx]||' ').toUpperCase();const mask=this.getMask(ch);SEG.forEach((s,i)=>this.hal.digitalWrite(this.segmentPins[i],(mask>>i)&1));
+    this.digitPins.forEach((p,i)=>this.hal.digitalWrite(p,i===this.idx?1:0));
+    // UI se limita a leer pines
+    this.screen.renderFromPins(this.hal,this.segmentPins,this.digitPins,this.idx);
+    this.idx=(this.idx+1)%this.digitPins.length;
   }
-  inoLines.push(`const byte* displays[totalDisplays]={${Array.from({length:width},(_,i)=>'display'+(i+1)).join(',')}};`);
-  inoLines.push(`void setup(){for(int i=0;i<7;i++) pinMode(segmentPins[i],OUTPUT);for(int i=0;i<totalDisplays;i++){pinMode(digitPins[i],OUTPUT); digitalWrite(digitPins[i],LOW);}}`);
-  inoLines.push(`void loop(){for(int i=0;i<totalDisplays;i++){activateDigit(i); setSegments(displays[i]); if(digitDelay>0) delay(digitDelay); deactivateDigit(i);} if(screenDelay>0) delay(screenDelay);}`);
-  inoLines.push(`void activateDigit(int digit){digitalWrite(digitPins[digit],HIGH);}`);
-  inoLines.push(`void deactivateDigit(int digit){digitalWrite(digitPins[digit],LOW);}`);
-  inoLines.push(`void setSegments(const byte* seg){for(int i=0;i<7;i++) digitalWrite(segmentPins[i],seg[i]);}`);
-
-  const blob=new Blob([inoLines.join('\n')],{type:'text/plain'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`display_screen${screenObj.id}.ino`; a.click();
-  alert(`.ino generado para pantalla ${screenObj.id} con ${charsUsed.length} símbolos.`);
+}
+class KeypadDriver{
+  constructor(hal,cpu){this.hal=hal;this.cpu=cpu;this.rows=[40,41,42,43];this.cols=[44,45,46];this.map=[['1','2','3'],['4','5','6'],['7','8','9'],['*','0','#']];this.down='';this.queue=[];this.lastAt=0;this.debounce=40;this.rows.forEach(r=>hal.pinMode(r,'OUT'));this.cols.forEach(c=>hal.pinMode(c,'IN'));}
+  press(k){this.down=k;}release(){this.down='';}
+  scan(now){for(let r=0;r<4;r++){this.rows.forEach((rp,i)=>this.hal.digitalWrite(rp,i===r?1:0));for(let c=0;c<3;c++){const k=this.map[r][c];const hit=this.down===k;this.hal.digitalWrite(this.cols[c],hit?1:0);if(hit&&now-this.lastAt>this.debounce){this.lastAt=now;this.queue.push(k);this.cpu.raiseInterrupt({type:'key',handler:'onKeyPress'});}}}}
+  available(){return this.queue.length>0?1:0}
+  read(){return this.queue.shift()||''}
 }
 
-createDisplays(3);
-updateDisplays('123');
-startMultiplex();
-startScreenLoop();
+// ===== OS LAYER =====
+class Scheduler{constructor(){this.tasks=[];}task_create(fn,interval){this.tasks.push({fn,interval,next:0});}tick(now){for(const t of this.tasks){if(now>=t.next){t.next=now+t.interval;t.fn();}}}}
+
+// ===== COMPILER TOOLCHAIN =====
+class CompilerC{
+  constructor(){this.errors=[];}
+  tokenize(src){
+    const clean=src.replace(/\r/g,'');
+    return clean.split(/\n/).map((l,i)=>({line:i+1,raw:l,t:l.trim()}));
+  }
+  parse(lines){
+    const ast={globals:[],funcs:{}}; let cur=null;
+    for(const ln of lines){const t=ln.t;if(!t||t.startsWith('//')||t.startsWith('#include')) continue;
+      let m;
+      if((m=t.match(/^(int|char)\s+(\w+)\s*=\s*([^;]+);$/))){ast.globals.push({type:m[1],name:m[2],value:m[3],line:ln.line});continue;}
+      if((m=t.match(/^int\s+(\w+)\[(\d+)\];$/))){ast.globals.push({type:'array',name:m[1],size:+m[2],line:ln.line});continue;}
+      if((m=t.match(/^void\s+(\w+)\s*\(([^)]*)\)\s*\{$/))){cur={name:m[1],args:m[2].trim()};ast.funcs[cur.name]=[];continue;}
+      if(t==='}'){cur=null;continue;}
+      if(cur) ast.funcs[cur.name].push({line:ln.line,text:t}); else this.errors.push(`L${ln.line}: sentencia fuera de función`);
+    }
+    return ast;
+  }
+  compileExpr(expr,varMap,line){
+    expr=expr.trim();
+    if(/^\d+$/.test(expr)) return [{op:'MOVI',r:0,v:+expr}];
+    if(/^'[^']'$/.test(expr)) return [{op:'MOVI',r:0,v:expr.charCodeAt(1)}];
+    let m;
+    if((m=expr.match(/^(\w+)\s*\+\s*(\d+)$/))){if(varMap[m[1]]==null){this.errors.push(`L${line}: variable ${m[1]} no declarada`);return [];}return [{op:'LOAD',r:0,a:varMap[m[1]]},{op:'ADDI',r:0,v:+m[2]}];}
+    if((m=expr.match(/^(\w+)$/))){if(varMap[m[1]]==null){this.errors.push(`L${line}: variable ${m[1]} no declarada`);return [];}return [{op:'LOAD',r:0,a:varMap[m[1]]}];}
+    this.errors.push(`L${line}: expresión no soportada ${expr}`);return [];
+  }
+  gen(ast){
+    const ir=[];const handlers={};const varMap={};let memPtr=0;
+    for(const g of ast.globals){
+      if(g.type==='array'){varMap[g.name]=memPtr;memPtr+=g.size;continue;}
+      varMap[g.name]=memPtr;
+      ir.push(...this.compileExpr(g.value,varMap,g.line),{op:'STORE',r:0,a:memPtr});memPtr++;
+    }
+    const compileStmt=(s,line)=>{let m;
+      if((m=s.match(/^lcd_print\((.+)\);$/))){const arg=m[1].trim();if(varMap[arg]!=null) ir.push({op:'API',fn:'lcd_print',args:[{var:arg}]}); else if(/^\d+$/.test(arg)) ir.push({op:'API',fn:'lcd_print',args:[+arg]}); else this.errors.push(`L${line}: lcd_print arg inválido`);return;}
+      if((m=s.match(/^lcd_set_digit\((\d+)\s*,\s*'(.)'\);$/))){ir.push({op:'API',fn:'lcd_set_digit',args:[+m[1],m[2]]});return;}
+      if((m=s.match(/^cchar_define\('(.)'\s*,\s*(\d+)\);$/))){ir.push({op:'API',fn:'cchar_define',args:[m[1],+m[2]]});return;}
+      if((m=s.match(/^cchar_define\('(.)'\s*,\s*"([01]{7})"\);$/))){ir.push({op:'API',fn:'cchar_define',args:[m[1],parseInt(m[2],2)]});return;}
+      if((m=s.match(/^delay\((\d+)\);$/))){ir.push({op:'API',fn:'delay',args:[+m[1]]});return;}
+      if((m=s.match(/^printf\((.+)\);$/))){ir.push({op:'API',fn:'printf',args:[m[1].replace(/^"|"$/g,'')]});return;}
+      if((m=s.match(/^(\w+)\s*=\s*(.+);$/))){if(varMap[m[1]]==null){this.errors.push(`L${line}: ${m[1]} no declarada`);return;}ir.push(...this.compileExpr(m[2],varMap,line),{op:'STORE',r:0,a:varMap[m[1]]});return;}
+      if((m=s.match(/^if\((\w+)\s*([><=!]=?)\s*(\d+)\)\s*\{\s*(.+)\s*\}$/))){if(varMap[m[1]]==null){this.errors.push(`L${line}: var ${m[1]} no declarada`);return;}ir.push({op:'LOAD',r:0,a:varMap[m[1]]});const j=ir.length;ir.push({op:'CJMP',cmp:m[2],v:+m[3],to:0});compileStmt(m[4],line);ir[j].to=ir.length;return;}
+      if((m=s.match(/^while\((\w+)\s*<\s*(\d+)\)\s*\{\s*(.+)\s*\}$/))){if(varMap[m[1]]==null){this.errors.push(`L${line}: var ${m[1]} no declarada`);return;}const st=ir.length;ir.push({op:'LOAD',r:0,a:varMap[m[1]]});const j=ir.length;ir.push({op:'CJMP',cmp:'>=',v:+m[2],to:0});compileStmt(m[3],line);ir.push({op:'JMP',to:st});ir[j].to=ir.length;return;}
+      if((m=s.match(/^(\w+)\(\);$/))){ir.push({op:'CALLSYM',name:m[1]});return;}
+      if(/^(lcd_init|keypad_init)\(\);$/.test(s)) return;
+      this.errors.push(`L${line}: no soportado -> ${s}`);
+    };
+    for(const fn of Object.keys(ast.funcs)){handlers[fn]=ir.length;for(const n of ast.funcs[fn]) compileStmt(n.text,n.line);ir.push({op:'RET'});}
+    // resolve symbolic calls
+    ir.forEach(ins=>{if(ins.op==='CALLSYM'){ins.op='CALL';ins.to=handlers[ins.name]??-1;if(ins.to<0)this.errors.push(`Función no definida: ${ins.name}`);}});
+    return {ir,handlers,varMap};
+  }
+  compile(src){this.errors=[];const ast=this.parse(this.tokenize(src));const out=this.gen(ast);if(!ast.funcs.loop)this.errors.push('Falta void loop()');return {...out,errors:this.errors};}
+}
+class ScreenUI{constructor(root,width=4){this.root=root;this.width=width;this.wrap=document.createElement('div');this.wrap.className='panel';this.root.appendChild(this.wrap);this.build();}
+ build(){this.wrap.innerHTML=`<div class='row'><label>Ancho <input class='w' type='number' min='1' max='8' value='${this.width}'></label><label>Mux Hz <input class='mhz' type='number' min='1' max='1000' value='220'></label></div><div class='display-row'></div>`;this.row=this.wrap.querySelector('.display-row');this.displays=[];for(let i=0;i<this.width;i++){const d=document.createElement('div');d.className='display';SEG.forEach(s=>{const sg=document.createElement('div');sg.className='segment '+s;d.appendChild(sg)});this.row.appendChild(d);this.displays.push(d);} }
+ renderFromPins(hal,segPins,digitPins,active){for(let i=0;i<this.displays.length;i++){this.displays[i].style.opacity=i===active?1:0.18;const on=i===active;this.displays[i].querySelectorAll('.segment').forEach((el,idx)=>el.classList.toggle('on',on&&hal.digitalRead(segPins[idx])===1));}}
 }
 
-document.getElementById('addScreenBtn').addEventListener('click',()=>{screenCount++; createScreen(screenCount);});
-document.getElementById('generateAllBtn').addEventListener('click',()=>{
-  const containers=allScreens.querySelectorAll('.screen-container');
-  if(containers.length===0){alert('No hay pantallas'); return;}
-  let totalDisplays=0;
-  let inoLines=`// Codigo combinado de todas las pantallas\n#include <Arduino.h>\n`;
-  containers.forEach((c,i)=>{
-    const inputText=c.querySelector('.inputText').value;
-    const multiplex=c.querySelector('.multiplexLevel').value;
-    const digitSlider=c.querySelector('.digitDelaySlider').value;
-    const screenSlider=c.querySelector('.screenDelaySlider').value;
-    const disableDigit=c.querySelector('.disableDigitDelay').checked;
-    const disableScreen=c.querySelector('.disableScreenDelay').checked;
-    const displays=c.querySelectorAll('.display');
-    inoLines+=`// Pantalla ${i+1}, Multiplexion x${multiplex}, Delay dígito ${disableDigit?0:digitSlider}ms, Delay pantalla ${disableScreen?0:screenSlider}ms\n`;
-    inoLines+=`const int displayCount${i+1}=${displays.length};\n`;
-    const charsUsed=Array.from(new Set(inputText.split('').map(c=>c.toUpperCase())));
-    charsUsed.forEach(char=>{
-      const segs=['a','b','c','d','e','f','g'].map((s,j)=>defaultSegments[char]?.includes(s)?1:0);
-      inoLines+=`const byte char_${i+1}_${char}[7]={${segs.join(',')}};\n`;
-    });
-    displays.forEach((d,j)=>{
-      const char=inputText[j]||' ';
-      const segs=['a','b','c','d','e','f','g'].map((s,k)=>defaultSegments[char.toUpperCase()]?.includes(s)?1:0);
-      inoLines+=`const byte display${i+1}_${j+1}[7]={${segs.join(',')}}; // ${char}\n`;
-    });
-    totalDisplays+=displays.length;
-  });
+// ===== runtime glue =====
+const ram=new RAM(256),rom=new ROM(),ic=new InterruptController(),cpu=new CPU(ram,rom,ic),pins=new Pins(64),hal=new HAL(pins),timers=new TimerController(),sched=new Scheduler(),cc=new CompilerC();
+const lcd=new LCDDriver(hal),keypad=new KeypadDriver(hal,cpu);
+const runtimeLog=(m)=>byId('runtimeConsole').textContent=m+'\n'+byId('runtimeConsole').textContent;
+const screens=[];function addScreen(){const s=new ScreenUI(byId('screens'),4);screens.push(s);lcd.bindScreen(s);s.wrap.querySelector('.mhz').oninput=e=>lcd.muxHz=+e.target.value;}addScreen();
 
-  inoLines+=`const int totalDisplays=${totalDisplays};\nconst int segmentPins[7]={2,3,4,5,6,7,8};\nconst int digitPins[totalDisplays]={${Array.from({length:totalDisplays},(_,i)=>9+i).join(',')}};\n`;
-  inoLines+=`const int digitDelay=2;\nconst int screenDelay=0;\n\n`;
-  inoLines+=`void setup(){for(int i=0;i<7;i++) pinMode(segmentPins[i],OUTPUT);for(int i=0;i<totalDisplays;i++){pinMode(digitPins[i],OUTPUT); digitalWrite(digitPins[i],LOW);}}\n`;
-  inoLines+=`void loop(){for(int i=0;i<totalDisplays;i++){activateDigit(i); setSegments(displays[i]); if(digitDelay>0) delay(digitDelay); deactivateDigit(i);} if(screenDelay>0) delay(screenDelay);}\n`;
-  inoLines+=`void activateDigit(int digit){digitalWrite(digitPins[digit],HIGH);}\nvoid deactivateDigit(int digit){digitalWrite(digitPins[digit],LOW);}\nvoid setSegments(const byte* seg){for(int i=0;i<7;i++) digitalWrite(segmentPins[i],seg[i]);}\n`;
+const api={
+  lcd_init:()=>lcd.lcd_init(),lcd_clear:()=>lcd.lcd_clear(),lcd_print:(x)=>{if(typeof x==='object'&&x.var){const a=state.varMap[x.var];lcd.lcd_print(ram.r(a));}else lcd.lcd_print(x);},lcd_set_digit:(i,c)=>lcd.lcd_set_digit(i,c),lcd_raw:(m)=>lcd.lcd_raw(m),
+  cchar_define:(ch,mask)=>lcd.cchar_define(ch,mask),
+  keypad_init:()=>{},keypad_read:()=>keypad.read(),keypad_available:()=>keypad.available(),
+  pinMode:(p,m)=>hal.pinMode(p,m),digitalWrite:(p,v)=>hal.digitalWrite(p,v),digitalRead:(p)=>hal.digitalRead(p),
+  delay:(ms)=>{state.sleepUntil=state.now+ms;},millis:()=>state.now,printf:(txt)=>runtimeLog(String(txt)),
+  task_create:(fn,interval)=>sched.task_create(()=>{const pc=state.handlers[fn];if(pc!=null){cpu.call.push(cpu.pc);cpu.pc=pc;}},interval)
+};
+const state={running:false,sleepUntil:0,now:0,handlers:{},varMap:{},breaks:new Set()};
 
-  const blob=new Blob([inoLines],{type:"text/plain"});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`display_all_screens.ino`; a.click();
-  alert('Archivo .ino combinado generado correctamente.');
-});
+function compileAndRun(){const src=byId('codeEditor').value;const res=cc.compile(src);const c=byId('compileConsole');c.textContent='';if(res.errors.length){c.textContent=res.errors.join('\n');return;}rom.load(res.ir);cpu.reset();state.handlers=res.handlers;state.varMap=res.varMap;state.sleepUntil=0;state.running=true;c.textContent=`OK. IR=${res.ir.length} instr`;if(state.handlers.setup!=null){cpu.pc=state.handlers.setup;runUntilReturn();}sched.tasks=[];if(state.handlers.loop!=null){sched.task_create(()=>{if(cpu.call.length<4){cpu.call.push(cpu.pc);cpu.pc=state.handlers.loop;}},1);}timers.t=[];if(state.handlers.onTimer!=null)timers.create(200,'onTimer');}
+function runUntilReturn(limit=3000){let i=0;while(i++<limit&&!cpu.halted){cpu.step({api,handlers:state.handlers});if(cpu.currentFunc==='return'&&cpu.call.length===0)break;}}
+function stepInstruction(){cpu.step({api,handlers:state.handlers});}
+function stepFunction(){const depth=cpu.call.length;let guard=0;do{cpu.step({api,handlers:state.handlers});if(++guard>1500)break;}while(cpu.call.length>=depth&&!cpu.halted);}
+
+function renderDebug(){byId('regs').textContent=`PC=${cpu.pc}\nSP=${cpu.sp}\nR=${Array.from(cpu.reg).join(', ')}\nZ=${cpu.flags.z}`;byId('stack').textContent=cpu.call.join(' <- ');let hx='';for(let i=0;i<128;i+=16){const row=[...ram.buf.slice(i,i+16)].map(x=>x.toString(16).padStart(2,'0')).join(' ');hx+=i.toString(16).padStart(2,'0')+': '+row+'\n';}byId('mem').textContent=hx;byId('pins').textContent=pins.dump();}
+function syntax(){const s=byId('codeEditor').value.replace(/&/g,'&amp;').replace(/</g,'&lt;');byId('syntax').innerHTML=s.replace(/(\/\/.*)/g,'<span class="cm">$1</span>').replace(/\b(void|int|char|if|while|return|include)\b/g,'<span class="kw">$1</span>').replace(/\b(lcd_\w+|keypad_\w+|cchar_\w+|delay|millis|pinMode|digitalWrite|digitalRead)\b/g,'<span class="fn">$1</span>').replace(/\b(\d+)\b/g,'<span class="num">$1</span>');}
+
+function tick(ts){state.now=ts;keypad.scan(ts);timers.tick(ts,cpu);lcd.tick(ts);if(state.running&&ts>=state.sleepUntil){const hz=+byId('clockHz').value;const ips=Math.max(1,Math.floor(hz/60));for(let i=0;i<ips;i++){if(state.breaks.has(cpu.pc)){state.running=false;runtimeLog('Breakpoint PC '+cpu.pc);break;}cpu.step({api,handlers:state.handlers});}}
+sched.tick(ts);renderDebug();requestAnimationFrame(tick);}requestAnimationFrame(tick);
+
+function parseBreaks(){state.breaks=new Set(byId('breakpoints').value.split(',').map(x=>parseInt(x.trim())).filter(n=>!isNaN(n)));}
+
+// file system simulated
+const FS_KEY='embedded_programs_v1';const fs={all:()=>JSON.parse(localStorage.getItem(FS_KEY)||'{}'),save:(n,src)=>{const d=fs.all();d[n]=src;localStorage.setItem(FS_KEY,JSON.stringify(d));},load:(n)=>fs.all()[n]||''};
+
+// UI bindings
+byId('addScreenBtn').onclick=addScreen;byId('compileBtn').onclick=compileAndRun;byId('pauseBtn').onclick=()=>state.running=false;byId('runBtn').onclick=()=>state.running=true;byId('stepInstrBtn').onclick=stepInstruction;byId('stepFuncBtn').onclick=stepFunction;
+byId('clockHz').oninput=e=>byId('hzv').textContent=e.target.value;byId('breakpoints').oninput=parseBreaks;byId('codeEditor').oninput=syntax;syntax();
+byId('saveProgramBtn').onclick=()=>{const n=prompt('Nombre del programa');if(n)fs.save(n,byId('codeEditor').value)};
+byId('loadProgramBtn').onclick=()=>{const n=prompt('Programa a cargar');const d=fs.load(n);if(d){byId('codeEditor').value=d;syntax();}};
+byId('exportProgramsBtn').onclick=()=>{const b=new Blob([JSON.stringify(fs.all(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='programas_embebidos.json';a.click();};
+byId('importProgramsBtn').onclick=()=>{const i=document.createElement('input');i.type='file';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>localStorage.setItem(FS_KEY,ev.target.result);r.readAsText(f)};i.click();};
+byId('examples').onchange=e=>{const v=e.target.value;if(v==='counter')byId('codeEditor').value=`#include <lcd.h>\n#include <cchar.h>\nint counter=0;\nvoid setup(){lcd_init();cchar_define('A',119);}\nvoid loop(){lcd_print(counter);counter=counter+1;delay(120);if(counter>999){ counter=0; }}\nvoid onTimer(){}\nvoid onKeyPress(char key){}`;
+if(v==='pin')byId('codeEditor').value=`#include <lcd.h>\n#include <keypad.h>\nint stage=0;\nvoid setup(){lcd_init();keypad_init();}\nvoid loop(){lcd_print(stage);delay(60);}\nvoid onKeyPress(char key){ stage=stage+1; }\nvoid onTimer(){}`;
+if(v==='anim')byId('codeEditor').value=`#include <lcd.h>\nint n=0;\nvoid setup(){lcd_init();}\nvoid loop(){lcd_print(n);n=n+1;delay(40);if(n>9){ n=0; }}\nvoid onTimer(){}\nvoid onKeyPress(char key){}`;syntax();};
+
+const keys=['1','2','3','4','5','6','7','8','9','*','0','#'];const kp=byId('keypad');keys.forEach(k=>{const b=document.createElement('div');b.className='key';b.textContent=k;b.onmousedown=()=>{b.classList.add('active');keypad.press(k)};b.onmouseup=()=>{b.classList.remove('active');keypad.release()};b.onmouseleave=()=>{b.classList.remove('active');keypad.release()};kp.appendChild(b);});
+})();
 </script>
 </body>
 </html>
