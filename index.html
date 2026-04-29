@@ -24,7 +24,7 @@ const FSKEY='lcd.fs.v6';let fs={'/home/boot.seg':'CLS\nPRINT LCD_READY\nPRINT HE
 function saveFS(){localStorage.setItem(FSKEY,JSON.stringify(fs))}function loadFS(){try{const d=JSON.parse(localStorage.getItem(FSKEY));if(d)fs=d}catch{}}
 function init(){const f=document.createDocumentFragment();for(let i=0;i<W*H;i++){const d=document.createElement('div');d.className='cell';const m={};for(const s of 'abcdefg'){const p=document.createElement('div');p.className='seg '+s;m[s]=p;d.appendChild(p)}cells.push(m);f.appendChild(d)}grid.appendChild(f)}
 const id=(x,y)=>y*W+x;function draw(x,y,ch){if(x<0||x>=W||y<0||y>=H)return;ch=(ch||'_').toUpperCase();if(buf[y][x]===ch)return;buf[y][x]=ch;const M=cells[id(x,y)],segs=SEG[ch]||'';for(const s of 'abcdefg'){const on=segs.includes(s);M[s].classList.toggle('on',on);M[s].style.filter=on?`brightness(${0.88+Math.random()*0.20})`:''}}
-function cls(){for(let y=0;y<H;y++)for(let x=0;x<W;x++)draw(x,y,'_');c={x:0,y:0}} function nl(){c.x=0;c.y++;if(c.y>=H){for(let y=1;y<H;y++)for(let x=0;x<W;x++)draw(x,y-1,buf[y][x]);for(let x=0;x<W;x++)draw(x,H-1,'_');c.y=H-1}} function print(t){for(const r of String(t)){if(r==='\n'){nl();continue}draw(c.x,c.y,r===' '?'_':r);c.x++;if(c.x>=W)nl()}}
+function cls(){hideCursor();for(let y=0;y<H;y++)for(let x=0;x<W;x++)draw(x,y,'_');c={x:0,y:0};showCursor()} function nl(){c.x=0;c.y++;if(c.y>=H){for(let y=1;y<H;y++)for(let x=0;x<W;x++)draw(x,y-1,buf[y][x]);for(let x=0;x<W;x++)draw(x,H-1,'_');c.y=H-1}} function print(t){for(const r of String(t)){if(r==='\n'){nl();continue}draw(c.x,c.y,r===' '?'_':r);c.x++;if(c.x>=W)nl()}}
 const wait=ms=>new Promise(r=>setTimeout(r,ms/Math.max(.1,speed)));let actx;function beep(f=440,d=120){actx=actx||new (window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.type='square';o.frequency.value=f;g.gain.value=.05;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+d/1000)}
 function parse(src){return src.split(/\r?\n/).map((l,n)=>({l:l.trim(),n:n+1})).filter(x=>x.l&&!x.l.startsWith('#'))}
 const ex=s=>s.replace(/\$\{(\w+)\}/g,(_,k)=>vars[k]??'0'),num=v=>isNaN(+v)?v:+v;function tst(cnd){const m=cnd.match(/^(\w+)\s*(==|!=|>=|<=|>|<)\s*(\S+)$/);if(!m)return false;const a=num(vars[m[1]]??0),b=num(ex(m[3]));return m[2]=='=='?a==b:m[2]=='!='?a!=b:m[2]=='>='?a>=b:m[2]=='<='?a<=b:m[2]=='>'?a>b:a<b}
@@ -47,11 +47,14 @@ else if(U.startsWith('RUN ')){const p=line.slice(4).trim();if(fs[p])await exec(f
 else if(U==='REBOOT'){vars={};cls();await wait(80);if(fs['/home/boot.seg'])await exec(fs['/home/boot.seg'])}
 await wait(8)}running=false}
 function readLine(){return new Promise(res=>{inputMode={buf:'',done:res}})} let inputMode=null;
-function drawCursor(){if(running)return;blink=!blink;draw(c.x,c.y,blink?'_':' ')}setInterval(drawCursor,380);
-window.addEventListener('keydown',async e=>{if(inputMode){if(e.key==='Enter'){const v=inputMode.buf;inputMode.done(v);inputMode=null;return}else if(e.key==='Backspace'){inputMode.buf=inputMode.buf.slice(0,-1);return}else if(e.key.length===1){inputMode.buf+=e.key.toUpperCase();return}}
+let cursorPainted=false,cursorPrev='_',cursorPos={x:0,y:0};
+function hideCursor(){if(cursorPainted){draw(cursorPos.x,cursorPos.y,cursorPrev);cursorPainted=false}}
+function showCursor(){if(running)return;hideCursor();cursorPos={x:c.x,y:c.y};cursorPrev=buf[c.y]?.[c.x]??'_';if(blink){draw(c.x,c.y,'_');cursorPainted=true}}
+function drawCursor(){blink=!blink;showCursor()}setInterval(drawCursor,380);
+window.addEventListener('keydown',async e=>{hideCursor();if(inputMode){if(e.key==='Enter'){const v=inputMode.buf;inputMode.done(v);inputMode=null;return}else if(e.key==='Backspace'){inputMode.buf=inputMode.buf.slice(0,-1);return}else if(e.key.length===1){inputMode.buf+=e.key.toUpperCase();return}}
 if(e.key==='F10'){e.preventDefault();stop=true;running=false} if(e.key==='F5'){e.preventDefault();stop=true;running=false;vars={};cls()} if(e.key==='F9'){e.preventDefault();if(!running){const r=await readLine();if(fs[r])exec(fs[r]);else exec(r)}}
-if(e.key.length===1&&!running){cli+=e.key;print(e.key)} if(e.key==='Backspace'&&!running){cli=cli.slice(0,-1);c.x=Math.max(0,c.x-1);draw(c.x,c.y,'_')} if(e.key==='Enter'&&!running&&cli){const cmd=cli.trim();cli='';nl();if(cmd)exec(cmd)}});
-kbBtn.onclick=()=>mobile.focus();mobile.addEventListener('input',e=>{if(!e.target.value)return;cli+=e.target.value;print(e.target.value);e.target.value=''});
+if(e.key.length===1&&!running){cli+=e.key;print(e.key)} if(e.key==='Backspace'&&!running){cli=cli.slice(0,-1);c.x=Math.max(0,c.x-1);draw(c.x,c.y,'_')} if(e.key==='Enter'&&!running&&cli){const cmd=cli.trim();cli='';nl();if(cmd)exec(cmd)}showCursor();});
+kbBtn.onclick=()=>mobile.focus();mobile.addEventListener('input',e=>{if(!e.target.value)return;hideCursor();cli+=e.target.value;print(e.target.value);e.target.value='';showCursor()});
 loadFS();init();cls();if(fs['/home/boot.seg'])exec(fs['/home/boot.seg']);
 })();
 </script></body></html>
