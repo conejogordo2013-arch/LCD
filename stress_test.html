@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset='utf-8'><title>LCD Stress Test</title></head><body>
+<pre id='out'></pre>
+<script src='app.js'></script>
+<script>
+(()=>{
+ const out=document.getElementById('out');
+ const log=(m)=>out.textContent+=m+'\n';
+ const {Parser,VM}=window.LCD;
+ let passed=0,failed=0;
+ function test(name,fn){try{fn();passed++;log('OK  '+name);}catch(e){failed++;log('ERR '+name+' -> '+e.message);}}
+ const ui={print:()=>{},row:()=>{},status:()=>{}};
+ const vm=new VM({ui,parser:new Parser()});
+ test('LET/SET NUM',()=>{vm.load("LET A:NUM = 1\nSET A = A + 2");vm.step(10);if(vm.vars.A!==3)throw new Error('A!=3')});
+ test('IF/GOTO LOOP watchdog',()=>{vm.resetAll();vm.maxOpsTotal=300;vm.load("LET N:NUM = 0\n@L\nSET N = N + 1\nIF N > 10 THEN @E\nGOTO @L\n@E\nSTOP");for(let i=0;i<40;i++)vm.step(20);if(vm.vars.N!==11)throw new Error('N!=11');});
+ test('TYPE mismatch',()=>{vm.resetAll();vm.load("LET A:NUM = 'X'");vm.step(5);if(vm.state!=='FAULT')throw new Error('Expected FAULT')});
+ test('CALL/RET depth',()=>{vm.resetAll();vm.maxDepth=2;vm.load("@A\nCALL @A");vm.step(20);if(vm.state!=='FAULT')throw new Error('Expected FAULT stack')});
+ log(`\nRESULT: ${passed} passed / ${failed} failed`);
+})();
+</script></body></html>
