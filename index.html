@@ -1,118 +1,83 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>7-Segment Mini OS</title>
+<!DOCTYPE html><html lang='es'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>LCD Terminal OS</title>
 <style>
-:root{--bg:#090c10;--panel:#131821;--line:#2a3340;--txt:#d6dde7;--muted:#8a95a6;--on:#41ff7e;--off:#27303c;--w:30px;--h:50px;--t:7px;--g:3px}
-*{box-sizing:border-box} body{margin:0;height:100vh;background:var(--bg);color:var(--txt);font-family:Consolas,monospace;display:flex;flex-direction:column}
-.top{padding:8px;display:flex;gap:8px;border-bottom:1px solid var(--line);background:#06090d}.top button,.top input{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
-.main{flex:1;display:grid;grid-template-columns:320px 1fr 320px;min-height:0}
-.pane{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}.pane:last-child{border-right:0}
-.h{font-size:12px;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line)}
-.fsbar{display:flex;gap:6px;padding:8px}.fsbar input{flex:1}.list,.log{margin:0 8px 8px;padding:8px;border:1px solid var(--line);border-radius:6px;background:#0b1016;overflow:auto;flex:1;white-space:pre-wrap}
-textarea{margin:0 8px 8px;flex:1;background:#0b1016;color:#a9ffb8;border:1px solid var(--line);border-radius:6px;padding:8px;resize:none}
-.displayWrap{margin:8px;padding:10px;flex:1;border:1px solid var(--line);border-radius:8px;background:#04070b;overflow:auto}
-.grid{display:grid;gap:var(--g);grid-template-columns:repeat(16,var(--w));grid-template-rows:repeat(8,var(--h));margin:auto;width:fit-content}
-.cell{width:var(--w);height:var(--h);display:grid;grid-template-columns:var(--t) 1fr var(--t);grid-template-rows:var(--t) 1fr var(--t) 1fr var(--t);background:#0b1016;border-radius:3px;padding:1px}
-.seg{background:var(--off);border-radius:4px;opacity:.35;transition:all .06s linear}.on{background:var(--on);opacity:.95;box-shadow:0 0 3px var(--on),0 0 8px color-mix(in srgb,var(--on) 70%,transparent)}
+:root{--bg:#04070a;--on:#39ff72;--off:#28303b;--w:30px;--h:52px;--t:7px;--gap:3px}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(#0a1018,#04070a);color:#bafcca;font-family:Consolas,monospace;height:100vh;display:flex;align-items:center;justify-content:center}
+.wrap{width:min(1400px,97vw);height:min(900px,96vh);background:#060b12;border:1px solid #243041;border-radius:10px;display:grid;grid-template-rows:auto 1fr auto;padding:10px;gap:8px}
+.head{color:#8ea2b6;font-size:13px}.display{border:1px solid #273344;border-radius:10px;padding:12px;background:#02050a;display:grid;place-items:center;overflow:auto}
+.grid{display:grid;grid-template-columns:repeat(32,var(--w));grid-template-rows:repeat(12,var(--h));gap:var(--gap)}
+.cell{width:var(--w);height:var(--h);display:grid;grid-template-columns:var(--t) 1fr var(--t);grid-template-rows:var(--t) 1fr var(--t) 1fr var(--t);background:#0a1018;border-radius:4px;padding:1px}
+.seg{background:var(--off);opacity:.3;border-radius:4px}.on{background:var(--on);opacity:.98;box-shadow:0 0 4px var(--on),0 0 12px color-mix(in srgb,var(--on) 75%, transparent)}
 .a{grid-column:2;grid-row:1}.b{grid-column:3;grid-row:2}.c{grid-column:3;grid-row:4}.d{grid-column:2;grid-row:5}.e{grid-column:1;grid-row:4}.f{grid-column:1;grid-row:2}.g{grid-column:2;grid-row:3}
-.status{padding:0 8px 8px;color:var(--muted);font-size:12px}
-</style>
-</head>
-<body>
-<div class="top">
-  <button id="run">RUN</button><button id="stop">STOP</button><button id="reset">RESET</button>
-  <label>Velocidad <input id="speed" type="number" min="0.1" step="0.1" value="1" style="width:70px"></label>
-  <label>Color LED <input id="led" type="color" value="#41ff7e"></label>
-</div>
-<div class="main">
-  <section class="pane">
-    <div class="h">IZQUIERDA · FS + EDITOR</div>
-    <div class="fsbar"><input id="path" value="/home/main.seg"><button id="open">open</button><button id="save">save</button></div>
-    <div class="fsbar"><button id="ls">ls</button><button id="cat">cat</button><button id="del">delete</button><button id="runFile">run</button></div>
-    <div id="files" class="list"></div>
-    <textarea id="editor"></textarea>
-  </section>
-  <section class="pane">
-    <div class="h">CENTRO · DISPLAY 7 SEGMENTOS 16x8</div>
-    <div class="displayWrap"><div id="grid" class="grid"></div></div>
-    <div id="status" class="status"></div>
-  </section>
-  <section class="pane">
-    <div class="h">DERECHA · CONSOLA / LOGS</div>
-    <div id="log" class="log"></div>
-  </section>
-</div>
+.foot{border:1px solid #273344;border-radius:8px;background:#050a10;padding:8px;min-height:110px;max-height:200px;overflow:auto;white-space:pre-wrap;color:#9cb3c8}
+</style></head><body><div class='wrap'><div class='head' id='head'></div><div class='display'><div class='grid' id='grid'></div></div><div class='foot' id='log'></div></div>
 <script>
 (()=>{
-const W=16,H=8,grid=document.getElementById('grid'),editor=document.getElementById('editor'),status=document.getElementById('status'),logEl=document.getElementById('log');
+const W=32,H=12,grid=document.getElementById('grid'),logEl=document.getElementById('log'),head=document.getElementById('head');
 const SEG={'0':'abcdef','1':'bc','2':'abdeg','3':'abcdg','4':'bcfg','5':'acdfg','6':'acdefg','7':'abc','8':'abcdefg','9':'abcdfg','A':'abcefg','B':'cdefg','C':'adef','D':'bcdeg','E':'adefg','F':'aefg','G':'acdef','H':'bcefg','I':'bc','J':'bcde','K':'efg','L':'def','M':'abcef','N':'abcef','O':'abcdef','P':'abefg','Q':'abcfg','R':'efg','S':'acdfg','T':'defg','U':'bcdef','V':'cde','W':'bcdef','X':'bcefg','Y':'bcdfg','Z':'abdeg','-':'g','_':''};
-const cells=[],buf=Array.from({length:H},()=>Array(W).fill('_')); let cur={x:0,y:0},run=false,stop=false,queue=[],vars={},ctx=null;
-const FSKEY='segmini.fs';
-let fs={ '/home/main.seg':`PRINT HOLA
-SLEEP 300
-CLS
-PRINT MUNDO`, '/home/counter.seg':`VAR N = 0
-LOOP:
-PRINT N
-SLEEP 250
-CLS
-ADD N 1
-IF N == 10 THEN GOTO END
-GOTO LOOP
-END:
-PRINT FIN`, '/home/scroll.seg':`SCROLL RETRO_MINI_OS`, '/home/beep.seg':`BEEP 660 120
-SLEEP 100
-BEEP 880 120
-PRINT BEEP_OK`, '/home/menu.seg':`PRINT MENU
-PRINT 1_CONTADOR
-PRINT 2_SCROLL
-PRINT 3_BEEP`,'/bin/readme.txt':'Mini-OS 7 segmentos'};
-function saveFS(){localStorage.setItem(FSKEY,JSON.stringify(fs))} function loadFS(){try{const d=JSON.parse(localStorage.getItem(FSKEY));if(d)fs=d}catch{}}
-function log(s){logEl.textContent+=s+'\n';logEl.scrollTop=logEl.scrollHeight}
-function init(){const frag=document.createDocumentFragment();for(let i=0;i<W*H;i++){const c=document.createElement('div');c.className='cell';const o={};for(const s of 'abcdefg'){const e=document.createElement('div');e.className='seg '+s;o[s]=e;c.appendChild(e)}cells.push(o);frag.appendChild(c)}grid.appendChild(frag)}
+const cells=[],buf=Array.from({length:H},()=>Array(W).fill('_'));let c={x:0,y:0},running=false,stop=false,speed=1,vars={},theme='#39ff72';
+const FSKEY='lcd.fs.v2';let fs={
+'/home/boot.seg':'CLS\nPRINT LCD_OS_READY\nPRINT TYPE_HELP',
+'/home/counter.seg':'VAR N=0\nL: PRINT N\nSLEEP 120\nCLS\nADD N 1\nIF N==100 THEN GOTO E\nGOTO L\nE: PRINT DONE',
+'/home/beep.seg':'BEEP 660 100\nSLEEP 80\nBEEP 880 120\nPRINT BEEP_OK'};
+function saveFS(){localStorage.setItem(FSKEY,JSON.stringify(fs))}function loadFS(){try{const d=JSON.parse(localStorage.getItem(FSKEY));if(d)fs=d}catch{}}
+function log(t){logEl.textContent+=t+'\n';logEl.scrollTop=logEl.scrollHeight}
+function init(){const f=document.createDocumentFragment();for(let i=0;i<W*H;i++){const d=document.createElement('div');d.className='cell';const m={};for(const s of 'abcdefg'){const p=document.createElement('div');p.className='seg '+s;m[s]=p;d.appendChild(p)}cells.push(m);f.appendChild(d)}grid.appendChild(f)}
 const id=(x,y)=>y*W+x;
-function draw(x,y,ch){if(x<0||x>=W||y<0||y>=H)return; if(buf[y][x]===ch)return; buf[y][x]=ch;const m=cells[id(x,y)],segs=SEG[ch]??'';for(const s of 'abcdefg'){const on=segs.includes(s);m[s].classList.toggle('on',on);m[s].style.filter=on?`brightness(${0.9+Math.random()*0.15})`:''}}
-function cls(){for(let y=0;y<H;y++)for(let x=0;x<W;x++)draw(x,y,'_');cur={x:0,y:0}}
-function nl(){cur.x=0;cur.y++;if(cur.y>=H){for(let y=1;y<H;y++)for(let x=0;x<W;x++)draw(x,y-1,buf[y][x]);for(let x=0;x<W;x++)draw(x,H-1,'_');cur.y=H-1}}
-function print(t){for(const r of String(t)){if(r==='\n'){nl();continue}draw(cur.x,cur.y,(r===' ')?'_':r.toUpperCase());cur.x++;if(cur.x>=W)nl()}}
-const sleep=ms=>new Promise(r=>setTimeout(r,ms/Number(document.getElementById('speed').value||1)));
-let actx; function beep(freq=440,dur=100){actx=actx||new (window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.type='square';o.frequency.value=freq;g.gain.value=0.04;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+dur/1000)}
-function parse(src){return src.split(/\r?\n/).map((l,i)=>({raw:l.trim(),no:i+1})).filter(x=>x.raw&& !x.raw.startsWith('#'))}
-async function exec(src){queue=parse(src);vars={};ctx={};run=true;stop=false;for(let pc=0;run&&pc<queue.length;pc++){if(stop)break;const line=queue[pc].raw;status.textContent=`L${queue[pc].no}: ${line}`;const U=line.toUpperCase();
-if(U.startsWith('PRINT '))print(line.slice(6));
+function draw(x,y,ch){if(x<0||x>=W||y<0||y>=H)return;ch=(ch||'_').toUpperCase();if(buf[y][x]===ch)return;buf[y][x]=ch;const M=cells[id(x,y)],segs=SEG[ch]||'';for(const s of 'abcdefg'){const on=segs.includes(s);M[s].classList.toggle('on',on);M[s].style.filter=on?`brightness(${0.86+Math.random()*0.22})`:''}}
+function cls(){for(let y=0;y<H;y++)for(let x=0;x<W;x++)draw(x,y,'_');c={x:0,y:0}}
+function nl(){c.x=0;c.y++;if(c.y>=H){for(let y=1;y<H;y++)for(let x=0;x<W;x++)draw(x,y-1,buf[y][x]);for(let x=0;x<W;x++)draw(x,H-1,'_');c.y=H-1}}
+function print(t){for(const r of String(t)){if(r==='\n'){nl();continue}draw(c.x,c.y,r===' '?'_':r);c.x++;if(c.x>=W)nl()}}
+const wait=ms=>new Promise(r=>setTimeout(r,ms/Math.max(.1,speed)));let actx;function beep(f=440,d=120){actx=actx||new (window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.type='square';o.frequency.value=f;g.gain.value=.05;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+d/1000)}
+function parse(src){return src.split(/\r?\n/).map((l,n)=>({l:l.trim(),n:n+1})).filter(x=>x.l&&!x.l.startsWith('#'))}
+async function exec(src){const q=parse(src);running=true;stop=false;for(let pc=0;running&&pc<q.length;pc++){if(stop)break;const line=q[pc].l,U=line.toUpperCase();head.textContent=`LCD Terminal OS | ${W}x${H} | line ${q[pc].n} | ${line}`;
+if(U==='HELP'){print('CMDS HELP CLS PRINT SET SLEEP BEEP SCROLL GOTO IF VAR ADD SUB MUL DIV MOD INC DEC TIME DATE RAND INPUT COLOR SPEED MAP DUMP LOAD SAVE LS CAT WRITE APPEND DEL REN CP MV RUN PS KILL PAUSE RESUME REBOOT')}
 else if(U==='CLS')cls();
-else if(U.startsWith('SET ')){const[,x,y,ch]=line.split(/\s+/);draw(+x,+y,(ch||'_').toUpperCase())}
-else if(U.startsWith('SLEEP '))await sleep(Math.max(0,+line.split(/\s+/)[1]||0));
+else if(U.startsWith('PRINT '))print(expand(line.slice(6)));
+else if(U.startsWith('SET ')){const[,x,y,ch]=line.split(/\s+/);draw(+x,+y,ch||'_')}
+else if(U.startsWith('SLEEP '))await wait(+line.split(/\s+/)[1]||0);
 else if(U.startsWith('BEEP ')){const[,f,d]=line.split(/\s+/);beep(+f||440,+d||120)}
-else if(U.startsWith('SCROLL ')){const text=line.slice(7);for(let i=0;i<text.length+W;i++){for(let y=0;y<H;y++)for(let x=0;x<W-1;x++)draw(x,y,buf[y][x+1]);const ch=text[i]||'_';draw(W-1,0,ch===' '?'_':ch.toUpperCase());await sleep(80)}}
-else if(U.startsWith('GOTO ')){const lab=line.slice(5).trim()+':';const at=queue.findIndex(q=>q.raw.toUpperCase()===lab.toUpperCase());if(at>=0){pc=at;continue}}
-else if(U.startsWith('IF ')&&U.includes(' THEN ')){const [c,t]=line.slice(3).split(/\s+THEN\s+/i);const m=c.match(/^(\w+)\s*==\s*(\S+)$/);if(m){const v=String(vars[m[1]]??'0');if(v===m[2]){queue.splice(pc+1,0,{raw:t,no:queue[pc].no})}}}
-else if(U.startsWith('VAR ')){const m=line.match(/^VAR\s+(\w+)\s*=\s*(.+)$/i);if(m)vars[m[1]]=isNaN(+m[2])?m[2]:+m[2]}
-else if(U.startsWith('ADD ')){const[,n,v]=line.split(/\s+/);vars[n]=(+vars[n]||0)+(+v||0)}
-else if(U==='LS'){log(Object.keys(fs).join('\n'))}
+else if(U.startsWith('SCROLL ')){const t=expand(line.slice(7));for(let i=0;i<t.length+W;i++){for(let y=0;y<H;y++)for(let x=0;x<W-1;x++)draw(x,y,buf[y][x+1]);draw(W-1,0,(t[i]||'_'));await wait(55)}}
+else if(U.startsWith('GOTO ')){const L=line.slice(5).trim()+':';const at=q.findIndex(e=>e.l.toUpperCase()===L.toUpperCase());if(at>=0){pc=at;continue}}
+else if(U.startsWith('IF ')&&U.includes(' THEN ')){const [cond,then]=line.slice(3).split(/\s+THEN\s+/i);if(test(cond))q.splice(pc+1,0,{l:then,n:q[pc].n})}
+else if(U.startsWith('VAR ')){const m=line.match(/^VAR\s+(\w+)\s*=\s*(.+)$/i);if(m)vars[m[1]]=numOrStr(expand(m[2]))}
+else if(U.startsWith('ADD ')){const[,k,v]=line.split(/\s+/);vars[k]=(+vars[k]||0)+(+expand(v)||0)}
+else if(U.startsWith('SUB ')){const[,k,v]=line.split(/\s+/);vars[k]=(+vars[k]||0)-(+expand(v)||0)}
+else if(U.startsWith('MUL ')){const[,k,v]=line.split(/\s+/);vars[k]=(+vars[k]||0)*(+expand(v)||0)}
+else if(U.startsWith('DIV ')){const[,k,v]=line.split(/\s+/);vars[k]=(+vars[k]||0)/(+expand(v)||1)}
+else if(U.startsWith('MOD ')){const[,k,v]=line.split(/\s+/);vars[k]=(+vars[k]||0)%(+expand(v)||1)}
+else if(U.startsWith('INC ')){const k=line.split(/\s+/)[1];vars[k]=(+vars[k]||0)+1}
+else if(U.startsWith('DEC ')){const k=line.split(/\s+/)[1];vars[k]=(+vars[k]||0)-1}
+else if(U==='TIME'){print(new Date().toISOString().slice(11,19).replace(/:/g,''))}
+else if(U==='DATE'){print(new Date().toISOString().slice(0,10).replace(/-/g,''))}
+else if(U.startsWith('RAND ')){const[,k,a,b]=line.split(/\s+/);vars[k]=Math.floor((+a||0)+Math.random()*((+b||9)-(+a||0)+1))}
+else if(U.startsWith('INPUT ')){const k=line.split(/\s+/)[1];vars[k]=await readLine(`INPUT ${k}> `)}
+else if(U.startsWith('COLOR ')){theme=line.split(/\s+/)[1]||theme;document.documentElement.style.setProperty('--on',theme)}
+else if(U.startsWith('SPEED ')){speed=Math.max(.1,+line.split(/\s+/)[1]||1)}
+else if(U.startsWith('MAP ')){const[,ch,se]=line.split(/\s+/);if(ch&&se)SEG[ch.toUpperCase()]=se.toLowerCase().replace(/[^a-g]/g,'')}
+else if(U==='DUMP'){log(JSON.stringify(vars,null,2))}
+else if(U.startsWith('LS')){const p=line.split(/\s+/)[1]||'/';log(Object.keys(fs).filter(k=>k.startsWith(p)).join('\n')||'[vacio]')}
 else if(U.startsWith('CAT ')){const p=line.slice(4).trim();log(fs[p]??'[no existe]')}
-else if(U.startsWith('WRITE ')){const p=line.slice(6).trim();fs[p]=editor.value;saveFS();log('saved '+p)}
-else if(U.startsWith('RUN ')){const p=line.slice(4).trim();if(fs[p])await exec(fs[p])}
-else if(U.startsWith('DELETE ')){const p=line.slice(7).trim();delete fs[p];saveFS();log('deleted '+p)}
-await sleep(10)} run=false;status.textContent=stop?'Detenido':'Listo'}
-function refreshFiles(){document.getElementById('files').textContent=Object.keys(fs).sort().join('\n')}
-function openPath(){const p=document.getElementById('path').value.trim();editor.value=fs[p]??'';log('open '+p)}
-function savePath(){const p=document.getElementById('path').value.trim();fs[p]=editor.value;saveFS();refreshFiles();log('save '+p)}
-
-document.getElementById('run').onclick=()=>!run&&exec(editor.value);
-document.getElementById('stop').onclick=()=>{stop=true;run=false};
-document.getElementById('reset').onclick=()=>{stop=true;run=false;vars={};cls();status.textContent='Reset OK'};
-document.getElementById('ls').onclick=()=>{refreshFiles();log('ls')};
-document.getElementById('cat').onclick=()=>log(fs[document.getElementById('path').value.trim()]??'[no existe]');
-document.getElementById('del').onclick=()=>{const p=document.getElementById('path').value.trim();delete fs[p];saveFS();refreshFiles();log('delete '+p)};
-document.getElementById('runFile').onclick=()=>{const p=document.getElementById('path').value.trim();if(fs[p])exec(fs[p]);};
-document.getElementById('open').onclick=openPath; document.getElementById('save').onclick=savePath;
-document.getElementById('led').oninput=e=>document.documentElement.style.setProperty('--on',e.target.value);
-editor.addEventListener('keydown',e=>{if(e.ctrlKey&&e.key.toLowerCase()==='s'){e.preventDefault();savePath()} if(e.ctrlKey&&e.key.toLowerCase()==='x'){e.preventDefault();editor.blur();log('editor exit')}});
-loadFS();init();cls();refreshFiles();openPath();log('Mini-OS listo');
+else if(U.startsWith('WRITE ')){const m=line.match(/^WRITE\s+(\S+)\s+(.+)$/i);if(m){fs[m[1]]=expand(m[2]).replaceAll('\\n','\n');saveFS();log('ok')}}
+else if(U.startsWith('APPEND ')){const m=line.match(/^APPEND\s+(\S+)\s+(.+)$/i);if(m){fs[m[1]]=(fs[m[1]]||'')+expand(m[2]).replaceAll('\\n','\n');saveFS();log('ok')}}
+else if(U.startsWith('DEL ')){const p=line.slice(4).trim();delete fs[p];saveFS();log('deleted '+p)}
+else if(U.startsWith('REN ')){const[,a,b]=line.split(/\s+/);if(fs[a]!=null){fs[b]=fs[a];delete fs[a];saveFS();log('renamed')}}
+else if(U.startsWith('CP ')){const[,a,b]=line.split(/\s+/);if(fs[a]!=null){fs[b]=fs[a];saveFS();log('copied')}}
+else if(U.startsWith('MV ')){const[,a,b]=line.split(/\s+/);if(fs[a]!=null){fs[b]=fs[a];delete fs[a];saveFS();log('moved')}}
+else if(U.startsWith('RUN ')){const p=line.slice(4).trim();if(fs[p])await exec(fs[p]);else log('no file')}
+else if(U==='REBOOT'){vars={};cls();await wait(120);if(fs['/home/boot.seg'])await exec(fs['/home/boot.seg'])}
+await wait(8)}running=false;head.textContent=`LCD Terminal OS | ${W}x${H} | listo`}
+function numOrStr(v){return isNaN(+v)?v:+v}
+function expand(s){return s.replace(/\$\{(\w+)\}/g,(_,k)=>vars[k]??'0')}
+function test(cnd){const m=cnd.match(/^(\w+)\s*(==|!=|>=|<=|>|<)\s*(\S+)$/);if(!m)return false;const a=numOrStr(vars[m[1]]??0),b=numOrStr(expand(m[3]));return m[2]=='=='?a==b:m[2]=='!='?a!=b:m[2]=='>='?a>=b:m[2]=='<='?a<=b:m[2]=='>'?a>b:a<b}
+function readLine(prompt){return new Promise(res=>{log(prompt);inputMode={buf:'',done:res,prompt};renderInput()})}
+let inputMode=null;function renderInput(){if(!inputMode)return;head.textContent=`${inputMode.prompt}${inputMode.buf}`}
+window.addEventListener('keydown',async e=>{if(inputMode){if(e.key==='Enter'){const v=inputMode.buf;inputMode.done(v);inputMode=null;log(v);return}else if(e.key==='Backspace'){inputMode.buf=inputMode.buf.slice(0,-1);renderInput();return}else if(e.key.length===1){inputMode.buf+=e.key.toUpperCase();renderInput();return}}
+if(e.key==='F5'){e.preventDefault();stop=true;running=false;vars={};cls();log('reset')}
+if(e.key==='F9'){e.preventDefault();if(!running){const line=await readLine('RUN FILE> ');if(fs[line])exec(fs[line]);else exec(line)}}
+if(e.key==='F10'){e.preventDefault();stop=true;running=false;log('stop')}
+if(e.key.length===1&&!running){if(!window.cli)window.cli='';if(e.key==='\r')return;window.cli+=e.key;head.textContent='> '+window.cli}
+if(e.key==='Enter'&&!running&&window.cli!=null){const cmd=window.cli.trim();window.cli='';if(cmd)exec(cmd)}
+});
+loadFS();init();cls();log('Teclado directo: Enter ejecuta comando, F9 run script/file, F10 stop, F5 reset, HELP para comandos');if(fs['/home/boot.seg'])exec(fs['/home/boot.seg']);
 })();
-</script>
-</body></html>
+</script></body></html>
