@@ -9,7 +9,7 @@ body{margin:0;background:#02050a;display:flex;justify-content:center;align-items
 .cell{width:var(--w);height:var(--h);display:grid;grid-template-columns:var(--t) 1fr var(--t);grid-template-rows:var(--t) 1fr var(--t) 1fr var(--t);background:#0c1219;border-radius:3px;padding:1px}
 .seg{background:var(--off);opacity:.45;border-radius:4px}.on{background:var(--on);opacity:.95;box-shadow:0 0 3px var(--on)}
 .a{grid-column:2;grid-row:1}.b{grid-column:3;grid-row:2}.c{grid-column:3;grid-row:4}.d{grid-column:2;grid-row:5}.e{grid-column:1;grid-row:4}.f{grid-column:1;grid-row:2}.g{grid-column:2;grid-row:3}
-</style></head><body><div class='wrap'><button id='kbBtn'>Activar teclado</button><div class='display' id='display' tabindex='0'><div class='grid' id='grid'></div></div></div>
+</style></head><body><div class='wrap'><button id='kbBtn'>Activar teclado</button><input id='kbInput' type='text' autocapitalize='characters' autocomplete='off' autocorrect='off' spellcheck='false' inputmode='text' style='position:absolute;left:-9999px;opacity:0'><div class='display' id='display' tabindex='0'><div class='grid' id='grid'></div></div></div>
 <script>
 (()=>{'use strict';
 const W=32,H=12,FSKEY='lcd.fs.v10',JMAX=64,MAX_FILE_SIZE=4096,MAX_FILES=128;
@@ -93,7 +93,11 @@ this.vm.load(t,'INLINE')}
 bind(){window.addEventListener('keydown',e=>{const now=Date.now();if(now-this.lastKeyTs<20)return;this.lastKeyTs=now;if(e.key==='Enter'){this.d.nl();this.enqueue({type:'line',data:this.cli});this.cli='';return}if(e.key==='Backspace'){this.cli=this.cli.slice(0,-1);return}if(e.key.length===1){this.cli+=e.key;this.d.print(e.key.toUpperCase())}})}}
 const display=new DisplayDriver(document.getElementById('grid'));const fs=new VFS();const parser=new Parser();const ui={print:()=>{},row:()=>{},status:()=>{}};const vm=new VM({ui,parser});const term=new Terminal(display,fs,vm);ui.print=t=>term.print(t);ui.row=(y,t)=>term.row(y,t);ui.status=t=>term.status(t);
 
-const kbBtn=document.getElementById('kbBtn');const dsp=document.getElementById('display');kbBtn.addEventListener('click',()=>{dsp.focus();term.status('KBD ON')});
+const kbBtn=document.getElementById('kbBtn');const dsp=document.getElementById('display');const kbInput=document.getElementById('kbInput');
+const focusKeyboard=()=>{dsp.focus();kbInput.focus();term.status('KBD ON')};
+kbBtn.addEventListener('click',focusKeyboard);kbBtn.addEventListener('touchstart',()=>setTimeout(focusKeyboard,0),{passive:true});
+kbInput.addEventListener('input',e=>{const v=e.target.value||'';for(const ch of v){term.cli+=ch;term.d.print(ch.toUpperCase())}e.target.value=''});
+kbInput.addEventListener('keydown',e=>{if(e.key==='Enter'){term.d.nl();term.enqueue({type:'line',data:term.cli});term.cli='';e.preventDefault();}if(e.key==='Backspace'&&!term.cli.length)e.preventDefault();});
 setInterval(()=>{term.processInput();vm.step();},20);
 })();
 </script></body></html>
