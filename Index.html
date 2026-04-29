@@ -9,59 +9,95 @@ body{margin:0;background:#02050a;display:flex;justify-content:center;align-items
 .cell{width:var(--w);height:var(--h);display:grid;grid-template-columns:var(--t) 1fr var(--t);grid-template-rows:var(--t) 1fr var(--t) 1fr var(--t);background:#0c1219;border-radius:3px;padding:1px}
 .seg{background:var(--off);opacity:.45;border-radius:4px}.on{background:var(--on);opacity:.95;box-shadow:0 0 3px var(--on)}
 .a{grid-column:2;grid-row:1}.b{grid-column:3;grid-row:2}.c{grid-column:3;grid-row:4}.d{grid-column:2;grid-row:5}.e{grid-column:1;grid-row:4}.f{grid-column:1;grid-row:2}.g{grid-column:2;grid-row:3}
-</style></head><body><div class='wrap'><button id='kbBtn'>Activar teclado</button><div class='display'><div class='grid' id='grid'></div></div></div>
+</style></head><body><div class='wrap'><button id='kbBtn'>Activar teclado</button><input id='kbInput' type='text' autocapitalize='characters' autocomplete='off' autocorrect='off' spellcheck='false' inputmode='text' style='position:absolute;left:-9999px;opacity:0'><div class='display' id='display' tabindex='0'><div class='grid' id='grid'></div></div></div>
 <script>
-(()=>{
-const W=32,H=12,grid=document.getElementById('grid'),kbBtn=document.getElementById('kbBtn');
+(()=>{'use strict';
+const W=32,H=12,FSKEY='lcd.fs.v10',JMAX=64,MAX_FILE_SIZE=4096,MAX_FILES=128;
 const SEG={'0':'abcdef','1':'bc','2':'abdeg','3':'abcdg','4':'bcfg','5':'acdfg','6':'acdefg','7':'abc','8':'abcdefg','9':'abcdfg','A':'abcefg','B':'cdefg','C':'adef','D':'bcdeg','E':'adefg','F':'aefg','G':'acdef','H':'bcefg','I':'bc','J':'bcde','K':'efg','L':'def','M':'abcef','N':'abcef','O':'abcdef','P':'abefg','Q':'abcfg','R':'efg','S':'acdfg','T':'defg','U':'bcdef','V':'cde','W':'bcdef','X':'bcefg','Y':'bcdfg','Z':'abdeg','-':'g','_':'',' ':''};
-const cells=[],buf=Array.from({length:H},()=>Array(W).fill('_')); let cur={x:0,y:0},running=false,stop=false,speed=1,vars={},cwd='/home',cli='';
-let blink=true,cursorPainted=false,cursorPrev='_',cursorPos={x:0,y:0};
-const FSKEY='lcd.fs.v7'; let fs={'/home/boot.seg':'CLS\nPRINT LCD_READY\nPRINT HELP','/home/demo.seg':'VAR N=0\nL:\nPRINT ${N}\nSLEEP 100\nCLS\nADD N 1\nIF N<20 THEN GOTO L\nPRINT END','/home/test.lc':'PRINT HELLO\nPRINT WORLD'};
-const mobile=document.createElement('input'); mobile.style.position='fixed'; mobile.style.opacity='0'; document.body.appendChild(mobile);
-function rpath(p){if(!p)return cwd;return p.startsWith('/')?p:(cwd+'/'+p).replace(/\/+/g,'/')}
-function saveFS(){localStorage.setItem(FSKEY,JSON.stringify(fs))} function loadFS(){try{const d=JSON.parse(localStorage.getItem(FSKEY));if(d)fs=d}catch{}}
-function init(){const f=document.createDocumentFragment();for(let i=0;i<W*H;i++){const c=document.createElement('div');c.className='cell';const m={};for(const s of 'abcdefg'){const e=document.createElement('div');e.className='seg '+s;m[s]=e;c.appendChild(e)}cells.push(m);f.appendChild(c)}grid.appendChild(f)}
-const id=(x,y)=>y*W+x; function draw(x,y,ch){if(x<0||x>=W||y<0||y>=H)return; ch=(ch||'_').toUpperCase(); if(buf[y][x]===ch)return; buf[y][x]=ch; const seg=SEG[ch]??''; const m=cells[id(x,y)]; for(const s of 'abcdefg')m[s].classList.toggle('on',seg.includes(s));}
-function hideCursor(){if(cursorPainted){draw(cursorPos.x,cursorPos.y,cursorPrev);cursorPainted=false}}
-function showCursor(){if(running)return;hideCursor();cursorPos={x:cur.x,y:cur.y};cursorPrev=buf[cur.y]?.[cur.x]??'_'; if(blink){draw(cur.x,cur.y,'-');cursorPainted=true}}
-function cls(){hideCursor();for(let y=0;y<H;y++)for(let x=0;x<W;x++)draw(x,y,'_');cur={x:0,y:0};showCursor()}
-function nl(){cur.x=0;cur.y++;if(cur.y>=H){for(let y=1;y<H;y++)for(let x=0;x<W;x++)draw(x,y-1,buf[y][x]);for(let x=0;x<W;x++)draw(x,H-1,'_');cur.y=H-1}}
-function print(t){hideCursor();for(const r of String(t)){if(r==='\n'){nl();continue}draw(cur.x,cur.y,r===' '?'_':r);cur.x++;if(cur.x>=W)nl()}showCursor()}
-const wait=ms=>new Promise(r=>setTimeout(r,ms/Math.max(.1,speed))); let actx; function beep(f=440,d=100){actx=actx||new (window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.type='square';o.frequency.value=f;g.gain.value=.04;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+d/1000)}
-function parse(src){return src.split(/\r?\n/).map((l,n)=>({l:l.trim(),n:n+1})).filter(x=>x.l && !x.l.startsWith('#'))}
-function ex(s){return String(s).replace(/\$\{(\w+)\}/g,(_,k)=>vars[k]??'0')} function n(v){return isNaN(+v)?v:+v}
-function tst(c){const m=c.match(/^(\w+)\s*(==|!=|>=|<=|>|<)\s*(\S+)$/); if(!m)return false; const a=n(vars[m[1]]??0),b=n(ex(m[3])); return m[2]=='=='?a==b:m[2]=='!='?a!=b:m[2]=='>='?a>=b:m[2]=='<='?a<=b:m[2]=='>'?a>b:a<b}
-async function exec(src){const q=parse(src);running=true;stop=false;for(let pc=0;pc<q.length&&!stop;pc++){const line=q[pc].l,U=line.toUpperCase();
-if(U==='HELP')print('PRINT CLS VAR ADD SUB MUL DIV IF GOTO RUN LS CAT WRITE APPEND DEL CD MKDIR TOUCH EDIT COMPILE SLEEP BEEP');
-else if(U==='CLS')cls();
-else if(U.startsWith('PRINT '))print(ex(line.slice(6)));
-else if(U.startsWith('VAR ')){const m=line.match(/^VAR\s+(\w+)\s*=\s*(.+)$/i);if(m)vars[m[1]]=n(ex(m[2]))}
-else if(U.startsWith('ADD ')){const[,k,v]=line.split(/\s+/);vars[k]=(+vars[k]||0)+(+ex(v)||0)}
-else if(U.startsWith('SUB ')){const[,k,v]=line.split(/\s+/);vars[k]=(+vars[k]||0)-(+ex(v)||0)}
-else if(U.startsWith('MUL ')){const[,k,v]=line.split(/\s+/);vars[k]=(+vars[k]||0)*(+ex(v)||0)}
-else if(U.startsWith('DIV ')){const[,k,v]=line.split(/\s+/);vars[k]=(+vars[k]||0)/(+ex(v)||1)}
-else if(U.startsWith('IF ')&&U.includes(' THEN ')){const [c,t]=line.slice(3).split(/\s+THEN\s+/i);if(tst(c))q.splice(pc+1,0,{l:t,n:q[pc].n})}
-else if(U.startsWith('GOTO ')){const L=line.slice(5).trim()+':';const at=q.findIndex(e=>e.l.toUpperCase()===L.toUpperCase());if(at>=0){pc=at;continue}}
-else if(U.startsWith('SLEEP '))await wait(+line.split(/\s+/)[1]||0);
-else if(U.startsWith('BEEP ')){const[,f,d]=line.split(/\s+/);beep(+f||440,+d||100)}
-else if(U.startsWith('CD ')){cwd=rpath(line.slice(3).trim());print('CD '+cwd)}
-else if(U.startsWith('MKDIR ')){const d=rpath(line.slice(6).trim()).replace(/\/$/,'');fs[d+'/.dir']='';saveFS();print('OK')}
-else if(U.startsWith('TOUCH ')){const f=rpath(line.slice(6).trim());if(!(f in fs))fs[f]='';saveFS();print('OK')}
-else if(U.startsWith('EDIT ')){const f=rpath(line.slice(5).trim());print('EDIT '+f);const t=await readLine();fs[f]=(fs[f]||'')+t;saveFS();print('SAVED')}
-else if(U.startsWith('COMPILE ')){const f=rpath(line.slice(8).trim());if(fs[f]){const out=f.replace(/\.lc$/i,'.bin');fs[out]=fs[f].split('\n').map(x=>x.trim()).join(';');saveFS();print('BIN '+out)}else print('NOFILE')}
-else if(U.startsWith('LS')){const p=rpath(line.split(/\s+/)[1]||cwd);print(Object.keys(fs).filter(k=>k.startsWith(p)).slice(0,20).join(' '))}
-else if(U.startsWith('CAT ')){const p=rpath(line.slice(4).trim());print((fs[p]||'NOFILE').slice(0,120))}
-else if(U.startsWith('WRITE ')){const m=line.match(/^WRITE\s+(\S+)\s+(.+)$/i);if(m){fs[rpath(m[1])]=ex(m[2]).replaceAll('\\n','\n');saveFS();print('OK')}}
-else if(U.startsWith('APPEND ')){const m=line.match(/^APPEND\s+(\S+)\s+(.+)$/i);if(m){const f=rpath(m[1]);fs[f]=(fs[f]||'')+ex(m[2]).replaceAll('\\n','\n');saveFS();print('OK')}}
-else if(U.startsWith('DEL ')){delete fs[rpath(line.slice(4).trim())];saveFS();print('OK')}
-else if(U.startsWith('RUN ')){const p=rpath(line.slice(4).trim());if(fs[p])await exec(fs[p]);else print('NOFILE')}
-await wait(6)}running=false;showCursor()}
-function readLine(){return new Promise(res=>inputMode={buf:'',done:res})} let inputMode=null;
-setInterval(()=>{blink=!blink;showCursor()},380);
-window.addEventListener('keydown',async e=>{hideCursor();if(inputMode){if(e.key==='Enter'){const v=inputMode.buf;inputMode.done(v);inputMode=null;showCursor();return} if(e.key==='Backspace'){inputMode.buf=inputMode.buf.slice(0,-1);showCursor();return} if(e.key.length===1){inputMode.buf+=e.key.toUpperCase();showCursor();return}}
-if(e.key==='F10'){stop=true;running=false;showCursor();return} if(e.key==='F5'){stop=true;running=false;vars={};cls();return}
-if(e.key.length===1&&!running){cli+=e.key;print(e.key)} if(e.key==='Backspace'&&!running){cli=cli.slice(0,-1);cur.x=Math.max(0,cur.x-1);draw(cur.x,cur.y,'_')} if(e.key==='Enter'&&!running&&cli){const cmd=cli.trim();cli='';nl();if(cmd)await exec(cmd)} showCursor();});
-kbBtn.onclick=()=>mobile.focus(); mobile.addEventListener('input',e=>{if(!e.target.value)return;hideCursor();cli+=e.target.value;print(e.target.value);e.target.value='';showCursor()});
-loadFS();init();cls(); if(fs['/home/boot.seg'])exec(fs['/home/boot.seg']);
+const SYS={DIRS:['/sys','/app','/var','/tmp'],STATE:['OK','WARN','ERR','BOOT','SYNC','DISC']};
+class DisplayDriver{constructor(root){this.root=root;this.cells=[];this.buf=Array.from({length:H},()=>Array(W).fill('_'));this.cur={x:0,y:0};this.init();}
+init(){const f=document.createDocumentFragment();for(let i=0;i<W*H;i++){const c=document.createElement('div');c.className='cell';const m={};for(const s of 'abcdefg'){const e=document.createElement('div');e.className='seg '+s;m[s]=e;c.appendChild(e)}this.cells.push(m);f.appendChild(c)}this.root.appendChild(f)}
+id(x,y){return y*W+x}
+put(x,y,ch){if(x<0||y<0||x>=W||y>=H)return;ch=(ch||'_').toUpperCase();if(this.buf[y][x]===ch)return;this.buf[y][x]=ch;const seg=SEG[ch]??'';const m=this.cells[this.id(x,y)];for(const s of 'abcdefg')m[s].classList.toggle('on',seg.includes(s));}
+cls(){for(let y=0;y<H;y++)for(let x=0;x<W;x++)this.put(x,y,'_');this.cur={x:0,y:0}}
+nl(){this.cur.x=0;this.cur.y++;if(this.cur.y>=H){for(let y=1;y<H;y++)for(let x=0;x<W;x++)this.put(x,y-1,this.buf[y][x]);for(let x=0;x<W;x++)this.put(x,H-1,'_');this.cur.y=H-1}}
+print(txt){for(const ch of String(txt)){if(ch==='\n'){this.nl();continue}this.put(this.cur.x,this.cur.y,ch===' '?'_':ch);this.cur.x++;if(this.cur.x>=W)this.nl();}}
+row(y,text){for(let x=0;x<W;x++)this.put(x,y,'_');for(let i=0;i<Math.min(W,text.length);i++)this.put(i,y,text[i]);}}
+class VFS{constructor(){this.db={files:{},meta:{},journal:[]};this.load();if(!Object.keys(this.db.files).length)this.seed();}
+now(){return Date.now()} norm(path){let p=(''+path).trim().toLowerCase();if(!p.startsWith('/'))p='/'+p;return p.replace(/\/+/g,'/').replace(/\/\/+$/,'')||'/';}
+crc16(s){let c=0;for(let i=0;i<s.length;i++)c=(c+s.charCodeAt(i))&0xffff;return c}
+appendJournal(op,path,ok,extra=''){this.db.journal.push({t:this.now(),op,path,ok,extra});if(this.db.journal.length>JMAX)this.db.journal=this.db.journal.slice(-JMAX)}
+ensurePath(path){if(!SYS.DIRS.some(d=>path===d||path.startsWith(d+'/')))return {ok:false,err:'EF410'};return {ok:true}}
+load(){try{const d=JSON.parse(localStorage.getItem(FSKEY)||'');if(d?.files&&d?.meta)this.db=d}catch{}}
+save(){localStorage.setItem(FSKEY,JSON.stringify(this.db))}
+seed(){this.writeAtomic('/sys/boot.lcdl',"PRINT 'LCD READY'\nPRINT 'TYPE HELP'\nSHOW 0,'MODE=BOOT'",'SRC',['RO']);this.writeAtomic('/app/watch.lcdl',"LET TMP:NUM = 65\nLET FAN:STATE = 'OK'\n@LOOP\nSHOW 0,'MODE=RUN'\nSHOW 1,'TMP='+TMP\nSHOW 2,'FAN='+FAN\nIF TMP>80 THEN @HOT\nSET TMP = TMP + 1\nSLEEP 150\nGOTO @LOOP\n@HOT\nSET FAN = 'WARN'\nSHOW 9,'ALM=OVHT'\nSLEEP 400\nSET TMP = 65\nSET FAN = 'OK'\nGOTO @LOOP",'SRC');}
+read(path){path=this.norm(path);if(!(path in this.db.files)){this.appendJournal('READ',path,false,'EF404');return {ok:false,err:'EF404'}}this.appendJournal('READ',path,true);return {ok:true,data:this.db.files[path],meta:this.db.meta[path]}}
+list(prefix='/'){prefix=this.norm(prefix);return Object.keys(this.db.files).filter(p=>p.startsWith(prefix)).sort()}
+writeAtomic(path,data,type='SRC',flags=[]){path=this.norm(path);const pchk=this.ensurePath(path);if(!pchk.ok){this.appendJournal('WRITE',path,false,pchk.err);return pchk}if(path.startsWith('/sys/')&&!flags.includes('RO_OVERRIDE')){const ex=this.db.meta[path];if(ex?.flags?.includes('RO'))return {ok:false,err:'EF403'}}
+const payload=String(data);if(payload.length>MAX_FILE_SIZE)return {ok:false,err:'EF413'};if(!(path in this.db.files)&&Object.keys(this.db.files).length>=MAX_FILES)return {ok:false,err:'EF429'};
+const tmp=path+'.tmp';this.db.files[tmp]=payload;this.db.meta[tmp]={size:payload.length,mtime:this.now(),type:'TMP',crc:this.crc16(payload),flags};
+this.db.files[path]=this.db.files[tmp];this.db.meta[path]={size:payload.length,mtime:this.now(),type,crc:this.crc16(payload),flags};
+delete this.db.files[tmp];delete this.db.meta[tmp];this.appendJournal('WRITE',path,true);this.save();return {ok:true}}
+del(path){path=this.norm(path);if(path.startsWith('/sys/'))return {ok:false,err:'EF403'};const ok=(path in this.db.files);delete this.db.files[path];delete this.db.meta[path];this.appendJournal('DEL',path,ok,ok?'':'EF404');this.save();return {ok}}}
+class Parser{parse(src){const out=[],labels={};const lines=String(src).split(/\r?\n/);for(let i=0;i<lines.length;i++){const raw=lines[i].trim();if(!raw||raw.startsWith('#'))continue;if(raw.startsWith('@')){labels[raw.toUpperCase()]=out.length;continue}out.push({line:i+1,raw})}return {ok:true,prog:out,labels}}}
+class VM{constructor(io){this.io=io;this.resetAll()}
+resetAll(){this.state='IDLE';this.vars={};this.types={};this.stack=[];this.pc=0;this.labels={};this.prog=[];this.lastErr='';this.sleepUntil=0;this.maxOpsPerTick=40;this.maxDepth=8;this.maxOpsTotal=120000;this.opsTotal=0;this.trace=false;this.entry='';}
+setState(s){this.state=s;this.io.ui.status(s==='RUNNING'?`RUN ${this.entry}`:s)}
+load(src,entry='SCRIPT'){this.setState('LOADING');const p=this.io.parser.parse(src);this.prog=p.prog;this.labels=p.labels;this.pc=0;this.opsTotal=0;this.lastErr='';this.entry=entry;this.setState('RUNNING');}
+err(code,msg,line){this.lastErr=`${code} L${line} ${msg}`;this.state='FAULT';this.io.ui.status(this.lastErr)}
+num(v){const n=Number(v);return Number.isFinite(n)?n:null}
+resolveToken(tok){const t=tok.trim();if(/^'.*'$/.test(t))return t.slice(1,-1).toUpperCase();if(/^[A-Z_][A-Z0-9_]*$/i.test(t)&&t.toUpperCase() in this.vars)return this.vars[t.toUpperCase()];const n=this.num(t);if(n!==null)return n;return t.toUpperCase()}
+castToType(type,val,line){if(type==='NUM'){const n=this.num(val);if(n===null)return this.err('ET200','NUM',line),null;return n}if(type==='BOOL')return val?1:0;if(type==='STATE'){const s=String(val).toUpperCase();if(!SYS.STATE.includes(s))return this.err('ET201','STATE',line),null;return s}return String(val).toUpperCase()}
+evalExpr(expr){expr=expr.trim();const add=expr.split('+').map(s=>s.trim());if(add.length>1){let acc=this.resolveToken(add[0]);for(let i=1;i<add.length;i++){const b=this.resolveToken(add[i]);if(typeof acc==='number'&&typeof b==='number')acc+=b;else acc=String(acc)+String(b)}return acc}return this.resolveToken(expr)}
+jump(lbl,line){const k=lbl.toUpperCase();if(!(k in this.labels))return this.err('EP140',`LABEL ${lbl}`,line);this.pc=this.labels[k]}
+test(cond,line){const m=cond.match(/^(.+)\s*(==|!=|>=|<=|>|<)\s*(.+)$/);if(!m)return this.err('EP105','COND',line),false;const a=this.evalExpr(m[1]),b=this.evalExpr(m[3]);if(typeof a!==typeof b&&['>','<','>=','<='].includes(m[2]))return this.err('ET202','CMP',line),false;switch(m[2]){case '==':return a===b;case '!=':return a!==b;case '>':return a>b;case '<':return a<b;case '>=':return a>=b;case '<=':return a<=b}return false}
+stepOne(){if(this.pc>=this.prog.length){this.state='IDLE';this.io.ui.status('DONE');return}const ins=this.prog[this.pc],t=ins.raw,u=t.toUpperCase();if(this.trace)this.io.ui.row(10,`PC=${String(this.pc).padStart(3,'0')} ${u.slice(0,20)}`);
+if(u==='STOP'){this.state='STOPPING';this.io.ui.status('STOPPING');this.state='IDLE';this.io.ui.status('IDLE');return}
+if(u==='PAUSE'){this.state='PAUSED';this.io.ui.status('PAUSED');return}
+if(u==='RESET'){this.resetAll();this.io.ui.status('RESET');return}
+if(u.startsWith('LET ')){const m=t.match(/^LET\s+([A-Z_][A-Z0-9_]*)\s*:\s*(NUM|STR|BOOL|STATE)\s*=\s*(.+)$/i);if(!m)return this.err('EP101','LET',ins.line);const k=m[1].toUpperCase(),ty=m[2].toUpperCase();const v=this.castToType(ty,this.evalExpr(m[3]),ins.line);if(this.state==='FAULT')return;this.types[k]=ty;this.vars[k]=v;this.pc++;return}
+if(u.startsWith('SET ')){const m=t.match(/^SET\s+([A-Z_][A-Z0-9_]*)\s*=\s*(.+)$/i);if(!m)return this.err('EP102','SET',ins.line);const k=m[1].toUpperCase();const ty=this.types[k]||'STR';const v=this.castToType(ty,this.evalExpr(m[2]),ins.line);if(this.state==='FAULT')return;this.vars[k]=v;this.pc++;return}
+if(u.startsWith('PRINT ')){this.io.ui.print(this.evalExpr(t.slice(6)));this.pc++;return}
+if(u.startsWith('SHOW ')){const m=t.match(/^SHOW\s+(\d+)\s*,\s*(.+)$/i);if(!m)return this.err('EP103','SHOW',ins.line);this.io.ui.row(Math.min(11,Math.max(0,+m[1])),String(this.evalExpr(m[2])));this.pc++;return}
+if(u.startsWith('IF ')){const m=t.match(/^IF\s+(.+)\s+THEN\s+(@[A-Z0-9_]+)$/i);if(!m)return this.err('EP104','IF',ins.line);if(this.test(m[1],ins.line)){this.jump(m[2],ins.line);return}this.pc++;return}
+if(u.startsWith('GOTO ')){this.jump(t.slice(5).trim(),ins.line);return}
+if(u.startsWith('CALL ')){if(this.stack.length>=this.maxDepth)return this.err('ER301','STACK',ins.line);this.stack.push(this.pc+1);this.jump(t.slice(5).trim(),ins.line);return}
+if(u==='RET'){if(!this.stack.length)return this.err('ER302','RET',ins.line);this.pc=this.stack.pop();return}
+if(u.startsWith('SLEEP ')){this.sleepUntil=Date.now()+Math.max(0,Number(t.split(/\s+/)[1])||0);this.pc++;return}
+if(u==='STATUS'){this.io.ui.status(`RUN PC=${this.pc} OPS=${this.opsTotal}`);this.pc++;return}
+return this.err('EP199',`UNKNOWN ${t}`,ins.line)}
+step(budget=this.maxOpsPerTick){if(this.state!=='RUNNING')return;if(Date.now()<this.sleepUntil)return;let n=0;while(this.state==='RUNNING'&&n<budget){this.stepOne();n++;this.opsTotal++;if(this.opsTotal>this.maxOpsTotal){this.err('ER399','WATCHDOG',this.prog[this.pc]?.line||0);break}if(Date.now()<this.sleepUntil)break}}}
+class Terminal{constructor(display,fs,vm){this.d=display;this.fs=fs;this.vm=vm;this.cli='';this.ev=[];this.lastKeyTs=0;this.bind();this.boot();}
+status(t){this.d.row(11,String(t).slice(0,W).toUpperCase())}
+row(y,t){this.d.row(y,String(t).toUpperCase())}
+print(t){this.d.print(String(t).toUpperCase());this.d.nl()}
+boot(){this.d.cls();this.row(0,'MODE=BOOT');this.status('IDLE');const b=this.fs.read('/sys/boot.lcdl');if(b.ok)this.runScript('/sys/boot.lcdl')}
+runScript(path){const r=this.fs.read(path);if(!r.ok)return this.print(r.err||'NOFILE');this.vm.load(r.data,path.split('/').pop().toUpperCase());this.status('RUN '+path.split('/').pop().toUpperCase())}
+enqueue(ev){this.ev.push(ev);if(this.ev.length>64)this.ev.shift()}
+processInput(){const ev=this.ev.shift();if(!ev)return;if(ev.type==='line')this.cmd(ev.data)}
+cmd(c){const t=c.trim();if(!t)return;const u=t.toUpperCase();if(u==='HELP')return this.print('START STOP PAUSE CONT RESET STATUS LS CAT WRITE DEL TRACE STEP JLS');
+if(u==='LS')return this.print(this.fs.list('/').slice(0,8).join(' '));
+if(u==='JLS')return this.print(this.fs.db.journal.slice(-4).map(j=>j.op+':'+j.path).join(' '));
+if(u.startsWith('CAT ')){const r=this.fs.read(t.slice(4).trim());return this.print(r.ok?r.data.slice(0,80):(r.err||'NOFILE'))}
+if(u.startsWith('START ')||u.startsWith('RUN ')){const p=t.split(/\s+/)[1];return this.runScript(p)}
+if(u.startsWith('WRITE ')){const m=t.match(/^WRITE\s+(\S+)\s+(.+)$/i);if(!m)return this.print('E CMD');const r=this.fs.writeAtomic(m[1],m[2]);return this.print(r.ok?'OK':r.err)}
+if(u.startsWith('DEL ')){const r=this.fs.del(t.slice(4).trim());return this.print(r.ok?'OK':r.err||'NOFILE')}
+if(u==='STATUS')return this.print(`STATE=${this.vm.state} PC=${this.vm.pc} OPS=${this.vm.opsTotal}`);
+if(u==='STOP'){this.vm.state='STOPPING';this.vm.state='IDLE';return this.status('STOP')}
+if(u==='PAUSE'){this.vm.state='PAUSED';return this.status('PAUSED')}
+if(u==='CONT'){if(this.vm.state==='PAUSED')this.vm.state='RUNNING';return this.status(this.vm.state)}
+if(u==='RESET'){this.vm.resetAll();return this.status('RESET')}
+if(u==='TRACE'){this.vm.trace=!this.vm.trace;return this.print('TRACE '+(this.vm.trace?'ON':'OFF'))}
+if(u==='STEP'){if(this.vm.state==='PAUSED'||this.vm.state==='IDLE'){if(this.vm.state==='IDLE'&&this.vm.prog.length===0)return this.print('NOPROG');this.vm.state='RUNNING';this.vm.step(1);if(this.vm.state==='RUNNING')this.vm.state='PAUSED';return this.status('STEP')}return this.print('BUSY')}
+this.vm.load(t,'INLINE')}
+bind(){window.addEventListener('keydown',e=>{const now=Date.now();if(now-this.lastKeyTs<20)return;this.lastKeyTs=now;if(e.key==='Enter'){this.d.nl();this.enqueue({type:'line',data:this.cli});this.cli='';return}if(e.key==='Backspace'){this.cli=this.cli.slice(0,-1);return}if(e.key.length===1){this.cli+=e.key;this.d.print(e.key.toUpperCase())}})}}
+const display=new DisplayDriver(document.getElementById('grid'));const fs=new VFS();const parser=new Parser();const ui={print:()=>{},row:()=>{},status:()=>{}};const vm=new VM({ui,parser});const term=new Terminal(display,fs,vm);ui.print=t=>term.print(t);ui.row=(y,t)=>term.row(y,t);ui.status=t=>term.status(t);
+
+const kbBtn=document.getElementById('kbBtn');const dsp=document.getElementById('display');const kbInput=document.getElementById('kbInput');
+const focusKeyboard=()=>{dsp.focus();kbInput.focus();term.status('KBD ON')};
+kbBtn.addEventListener('click',focusKeyboard);kbBtn.addEventListener('touchstart',()=>setTimeout(focusKeyboard,0),{passive:true});
+kbInput.addEventListener('input',e=>{const v=e.target.value||'';for(const ch of v){term.cli+=ch;term.d.print(ch.toUpperCase())}e.target.value=''});
+kbInput.addEventListener('keydown',e=>{if(e.key==='Enter'){term.d.nl();term.enqueue({type:'line',data:term.cli});term.cli='';e.preventDefault();}if(e.key==='Backspace'&&!term.cli.length)e.preventDefault();});
+setInterval(()=>{term.processInput();vm.step();},20);
 })();
 </script></body></html>
