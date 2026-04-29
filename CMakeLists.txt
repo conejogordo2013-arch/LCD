@@ -1,8 +1,0 @@
-cmake_minimum_required(VERSION 3.16)
-project(lcd_terminal_emulator)
-set(CMAKE_CXX_STANDARD 17)
-find_package(SDL2 REQUIRED)
-find_package(SDL2_ttf REQUIRED)
-add_executable(lcd_terminal main.cpp)
-target_include_directories(lcd_terminal PRIVATE ${SDL2_INCLUDE_DIRS} ${SDL2_TTF_INCLUDE_DIRS})
-target_link_libraries(lcd_terminal PRIVATE ${SDL2_LIBRARIES} SDL2_ttf util)
