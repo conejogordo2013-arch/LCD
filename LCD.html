@@ -25,6 +25,8 @@ pre{background:#0d0f12;padding:8px;overflow:auto;max-height:200px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .small{font-size:12px;color:#adb5bd}
 .syntax .kw{color:#6cb6ff}.syntax .fn{color:#7ee787}.syntax .num{color:#f2cc60}.syntax .cm{color:#8b949e}
+@media (max-width:980px){.layout{grid-template-columns:1fr}.two{grid-template-columns:1fr}.row{gap:6px}.panel{padding:8px}}
+@media (max-width:560px){body{padding:8px}textarea{height:220px}.display{width:42px;height:82px}.a,.d,.g{left:8px;width:26px}.b,.c,.e,.f{height:30px}}
 </style>
 </head>
 <body>
@@ -48,6 +50,7 @@ pre{background:#0d0f12;padding:8px;overflow:auto;max-height:200px}
     <textarea id="codeEditor">#include <lcd.h>
 #include <keypad.h>
 #include <time.h>
+#include <cchar.h>
 
 int counter = 0;
 
@@ -107,6 +110,7 @@ class CPU{
       case 'CMPGTI': this.flags.z=!(this.reg[ins.r]>ins.v);break;
       case 'JMP': this.pc=ins.to;break;
       case 'JNZ': if(!this.flags.z) this.pc=ins.to;break;
+      case 'CJMP': {const x=this.reg[0];let cond=false; if(ins.cmp==='>')cond=x>ins.v; else if(ins.cmp==='>=')cond=x>=ins.v; else if(ins.cmp==='<')cond=x<ins.v; else if(ins.cmp==='<=')cond=x<=ins.v; else if(ins.cmp==='==')cond=x===ins.v; else if(ins.cmp==='!=')cond=x!==ins.v; if(cond) this.pc=ins.to; break;}
       case 'CALL': this.call.push(this.pc);this.currentFunc=ins.fn||'anon';this.pc=ins.to;break;
       case 'RET': this.pc=this.call.pop() ?? this.rom.program.length;this.currentFunc='return';break;
       case 'API': ctx.api[ins.fn](...(ins.args||[]));break;
@@ -117,15 +121,17 @@ class CPU{
 // ===== FIRMWARE LAYER =====
 class HAL{constructor(pins){this.p=pins;}pinMode(a,m){this.p.pinMode(a,m)}digitalWrite(a,v){this.p.digitalWrite(a,v)}digitalRead(a){return this.p.digitalRead(a)}}
 class LCDDriver{
-  constructor(hal){this.hal=hal;this.screen=null;this.segmentPins=[2,3,4,5,6,7,8];this.digitPins=[];this.text='';this.muxHz=220;this.last=0;this.idx=0;}
+  constructor(hal){this.hal=hal;this.screen=null;this.segmentPins=[2,3,4,5,6,7,8];this.digitPins=[];this.text='';this.muxHz=220;this.last=0;this.idx=0;this.custom={};}
   bindScreen(screen){this.screen=screen;this.digitPins=Array.from({length:screen.width},(_,i)=>20+i);for(const p of this.segmentPins)this.hal.pinMode(p,'OUT');for(const p of this.digitPins)this.hal.pinMode(p,'OUT');}
   lcd_init(){this.lcd_clear();}
   lcd_clear(){this.text='';}
   lcd_print(v){this.text=String(v)}
   lcd_set_digit(i,c){const arr=this.text.padEnd(this.screen.width,' ').split('');arr[i]=c;this.text=arr.join('');}
   lcd_raw(mask7){SEG.forEach((_,i)=>this.hal.digitalWrite(this.segmentPins[i],(mask7>>i)&1));}
+  cchar_define(ch,mask){this.custom[String(ch).charAt(0).toUpperCase()]=mask&127;}
+  getMask(ch){const c=(ch||' ').toUpperCase();if(this.custom[c]!=null)return this.custom[c];const segs=FONT[c]||[];let m=0;SEG.forEach((s,i)=>{if(segs.includes(s))m|=(1<<i)});return m;}
   tick(now){if(!this.screen||this.digitPins.length===0)return;const step=1000/Math.max(1,this.muxHz);if(now-this.last<step)return;this.last=now;
-    const ch=(this.text[this.idx]||' ').toUpperCase();const segs=FONT[ch]||[];SEG.forEach((s,i)=>this.hal.digitalWrite(this.segmentPins[i],segs.includes(s)?1:0));
+    const ch=(this.text[this.idx]||' ').toUpperCase();const mask=this.getMask(ch);SEG.forEach((s,i)=>this.hal.digitalWrite(this.segmentPins[i],(mask>>i)&1));
     this.digitPins.forEach((p,i)=>this.hal.digitalWrite(p,i===this.idx?1:0));
     // UI se limita a leer pines
     this.screen.renderFromPins(this.hal,this.segmentPins,this.digitPins,this.idx);
@@ -146,37 +152,59 @@ class Scheduler{constructor(){this.tasks=[];}task_create(fn,interval){this.tasks
 // ===== COMPILER TOOLCHAIN =====
 class CompilerC{
   constructor(){this.errors=[];}
-  tokenize(src){return src.split(/\n/).map((l,i)=>({raw:l,line:i+1,t:l.trim()}));}
-  parse(lines){ // mini AST
+  tokenize(src){
+    const clean=src.replace(/\r/g,'');
+    return clean.split(/\n/).map((l,i)=>({line:i+1,raw:l,t:l.trim()}));
+  }
+  parse(lines){
     const ast={globals:[],funcs:{}}; let cur=null;
-    for(const ln of lines){const t=ln.t;if(!t||t.startsWith('//')||t.startsWith('#include'))continue;
-      if(/^int\s+\w+\s*=\s*\d+;/.test(t)){const m=t.match(/^int\s+(\w+)\s*=\s*(\d+);/);ast.globals.push({type:'int',name:m[1],value:+m[2]});continue;}
-      if(/^void\s+\w+\s*\(.*\)\s*\{/.test(t)){const name=t.match(/^void\s+(\w+)/)[1];cur=name;ast.funcs[name]=[];continue;}
+    for(const ln of lines){const t=ln.t;if(!t||t.startsWith('//')||t.startsWith('#include')) continue;
+      let m;
+      if((m=t.match(/^(int|char)\s+(\w+)\s*=\s*([^;]+);$/))){ast.globals.push({type:m[1],name:m[2],value:m[3],line:ln.line});continue;}
+      if((m=t.match(/^int\s+(\w+)\[(\d+)\];$/))){ast.globals.push({type:'array',name:m[1],size:+m[2],line:ln.line});continue;}
+      if((m=t.match(/^void\s+(\w+)\s*\(([^)]*)\)\s*\{$/))){cur={name:m[1],args:m[2].trim()};ast.funcs[cur.name]=[];continue;}
       if(t==='}'){cur=null;continue;}
-      if(cur) ast.funcs[cur].push({line:ln.line,text:t});
-      else this.errors.push(`L${ln.line}: sentencia fuera de función.`);
+      if(cur) ast.funcs[cur.name].push({line:ln.line,text:t}); else this.errors.push(`L${ln.line}: sentencia fuera de función`);
     }
     return ast;
   }
-  gen(ast){const ir=[];const handlers={};const varMap={};let memPtr=0;
-    for(const g of ast.globals){varMap[g.name]=memPtr;ir.push({op:'MOVI',r:0,v:g.value},{op:'STORE',r:0,a:memPtr});memPtr++;}
-    const emitFn=(name,body)=>{handlers[name]=ir.length;for(const n of body){const s=n.text;
-      let m;
-      if((m=s.match(/^lcd_print\((\w+)\);/))) ir.push({op:'API',fn:'lcd_print',args:[{var:m[1]}]});
-      else if((m=s.match(/^lcd_set_digit\((\d+)\s*,\s*'(.)'\);/))) ir.push({op:'API',fn:'lcd_set_digit',args:[+m[1],m[2]]});
-      else if((m=s.match(/^delay\((\d+)\);/))) ir.push({op:'API',fn:'delay',args:[+m[1]]});
-      else if((m=s.match(/^(\w+)\s*=\s*(\w+)\s*\+\s*(\d+);/))){if(varMap[m[1]]==null||varMap[m[2]]==null)this.errors.push(`L${n.line}: variable no declarada.`); else ir.push({op:'LOAD',r:0,a:varMap[m[2]]},{op:'ADDI',r:0,v:+m[3]},{op:'STORE',r:0,a:varMap[m[1]]});}
-      else if((m=s.match(/^if\((\w+)\s*>\s*(\d+)\)\s*\{\s*(\w+)\s*=\s*(\d+);\s*\}/))){if(varMap[m[1]]==null||varMap[m[3]]==null)this.errors.push(`L${n.line}: variable no declarada.`);else{ir.push({op:'LOAD',r:0,a:varMap[m[1]]},{op:'CMPGTI',r:0,v:+m[2]});const j=ir.length;ir.push({op:'JNZ',to:0});ir.push({op:'MOVI',r:1,v:+m[4]},{op:'STORE',r:1,a:varMap[m[3]]});ir[j].to=ir.length;}}
-      else if(/^(lcd_init|keypad_init)\(\);/.test(s)){}
-      else this.errors.push(`L${n.line}: no soportado -> ${s}`);
-    }ir.push({op:'RET'});
+  compileExpr(expr,varMap,line){
+    expr=expr.trim();
+    if(/^\d+$/.test(expr)) return [{op:'MOVI',r:0,v:+expr}];
+    if(/^'[^']'$/.test(expr)) return [{op:'MOVI',r:0,v:expr.charCodeAt(1)}];
+    let m;
+    if((m=expr.match(/^(\w+)\s*\+\s*(\d+)$/))){if(varMap[m[1]]==null){this.errors.push(`L${line}: variable ${m[1]} no declarada`);return [];}return [{op:'LOAD',r:0,a:varMap[m[1]]},{op:'ADDI',r:0,v:+m[2]}];}
+    if((m=expr.match(/^(\w+)$/))){if(varMap[m[1]]==null){this.errors.push(`L${line}: variable ${m[1]} no declarada`);return [];}return [{op:'LOAD',r:0,a:varMap[m[1]]}];}
+    this.errors.push(`L${line}: expresión no soportada ${expr}`);return [];
+  }
+  gen(ast){
+    const ir=[];const handlers={};const varMap={};let memPtr=0;
+    for(const g of ast.globals){
+      if(g.type==='array'){varMap[g.name]=memPtr;memPtr+=g.size;continue;}
+      varMap[g.name]=memPtr;
+      ir.push(...this.compileExpr(g.value,varMap,g.line),{op:'STORE',r:0,a:memPtr});memPtr++;
+    }
+    const compileStmt=(s,line)=>{let m;
+      if((m=s.match(/^lcd_print\((.+)\);$/))){const arg=m[1].trim();if(varMap[arg]!=null) ir.push({op:'API',fn:'lcd_print',args:[{var:arg}]}); else if(/^\d+$/.test(arg)) ir.push({op:'API',fn:'lcd_print',args:[+arg]}); else this.errors.push(`L${line}: lcd_print arg inválido`);return;}
+      if((m=s.match(/^lcd_set_digit\((\d+)\s*,\s*'(.)'\);$/))){ir.push({op:'API',fn:'lcd_set_digit',args:[+m[1],m[2]]});return;}
+      if((m=s.match(/^cchar_define\('(.)'\s*,\s*(\d+)\);$/))){ir.push({op:'API',fn:'cchar_define',args:[m[1],+m[2]]});return;}
+      if((m=s.match(/^cchar_define\('(.)'\s*,\s*"([01]{7})"\);$/))){ir.push({op:'API',fn:'cchar_define',args:[m[1],parseInt(m[2],2)]});return;}
+      if((m=s.match(/^delay\((\d+)\);$/))){ir.push({op:'API',fn:'delay',args:[+m[1]]});return;}
+      if((m=s.match(/^printf\((.+)\);$/))){ir.push({op:'API',fn:'printf',args:[m[1].replace(/^"|"$/g,'')]});return;}
+      if((m=s.match(/^(\w+)\s*=\s*(.+);$/))){if(varMap[m[1]]==null){this.errors.push(`L${line}: ${m[1]} no declarada`);return;}ir.push(...this.compileExpr(m[2],varMap,line),{op:'STORE',r:0,a:varMap[m[1]]});return;}
+      if((m=s.match(/^if\((\w+)\s*([><=!]=?)\s*(\d+)\)\s*\{\s*(.+)\s*\}$/))){if(varMap[m[1]]==null){this.errors.push(`L${line}: var ${m[1]} no declarada`);return;}ir.push({op:'LOAD',r:0,a:varMap[m[1]]});const j=ir.length;ir.push({op:'CJMP',cmp:m[2],v:+m[3],to:0});compileStmt(m[4],line);ir[j].to=ir.length;return;}
+      if((m=s.match(/^while\((\w+)\s*<\s*(\d+)\)\s*\{\s*(.+)\s*\}$/))){if(varMap[m[1]]==null){this.errors.push(`L${line}: var ${m[1]} no declarada`);return;}const st=ir.length;ir.push({op:'LOAD',r:0,a:varMap[m[1]]});const j=ir.length;ir.push({op:'CJMP',cmp:'>=',v:+m[2],to:0});compileStmt(m[3],line);ir.push({op:'JMP',to:st});ir[j].to=ir.length;return;}
+      if((m=s.match(/^(\w+)\(\);$/))){ir.push({op:'CALLSYM',name:m[1]});return;}
+      if(/^(lcd_init|keypad_init)\(\);$/.test(s)) return;
+      this.errors.push(`L${line}: no soportado -> ${s}`);
     };
-    ['setup','loop','onTimer','onKeyPress'].forEach(fn=>{if(ast.funcs[fn]) emitFn(fn,ast.funcs[fn]);});
+    for(const fn of Object.keys(ast.funcs)){handlers[fn]=ir.length;for(const n of ast.funcs[fn]) compileStmt(n.text,n.line);ir.push({op:'RET'});}
+    // resolve symbolic calls
+    ir.forEach(ins=>{if(ins.op==='CALLSYM'){ins.op='CALL';ins.to=handlers[ins.name]??-1;if(ins.to<0)this.errors.push(`Función no definida: ${ins.name}`);}});
     return {ir,handlers,varMap};
   }
   compile(src){this.errors=[];const ast=this.parse(this.tokenize(src));const out=this.gen(ast);if(!ast.funcs.loop)this.errors.push('Falta void loop()');return {...out,errors:this.errors};}
 }
-
 class ScreenUI{constructor(root,width=4){this.root=root;this.width=width;this.wrap=document.createElement('div');this.wrap.className='panel';this.root.appendChild(this.wrap);this.build();}
  build(){this.wrap.innerHTML=`<div class='row'><label>Ancho <input class='w' type='number' min='1' max='8' value='${this.width}'></label><label>Mux Hz <input class='mhz' type='number' min='1' max='1000' value='220'></label></div><div class='display-row'></div>`;this.row=this.wrap.querySelector('.display-row');this.displays=[];for(let i=0;i<this.width;i++){const d=document.createElement('div');d.className='display';SEG.forEach(s=>{const sg=document.createElement('div');sg.className='segment '+s;d.appendChild(sg)});this.row.appendChild(d);this.displays.push(d);} }
  renderFromPins(hal,segPins,digitPins,active){for(let i=0;i<this.displays.length;i++){this.displays[i].style.opacity=i===active?1:0.18;const on=i===active;this.displays[i].querySelectorAll('.segment').forEach((el,idx)=>el.classList.toggle('on',on&&hal.digitalRead(segPins[idx])===1));}}
@@ -190,6 +218,7 @@ const screens=[];function addScreen(){const s=new ScreenUI(byId('screens'),4);sc
 
 const api={
   lcd_init:()=>lcd.lcd_init(),lcd_clear:()=>lcd.lcd_clear(),lcd_print:(x)=>{if(typeof x==='object'&&x.var){const a=state.varMap[x.var];lcd.lcd_print(ram.r(a));}else lcd.lcd_print(x);},lcd_set_digit:(i,c)=>lcd.lcd_set_digit(i,c),lcd_raw:(m)=>lcd.lcd_raw(m),
+  cchar_define:(ch,mask)=>lcd.cchar_define(ch,mask),
   keypad_init:()=>{},keypad_read:()=>keypad.read(),keypad_available:()=>keypad.available(),
   pinMode:(p,m)=>hal.pinMode(p,m),digitalWrite:(p,v)=>hal.digitalWrite(p,v),digitalRead:(p)=>hal.digitalRead(p),
   delay:(ms)=>{state.sleepUntil=state.now+ms;},millis:()=>state.now,printf:(txt)=>runtimeLog(String(txt)),
@@ -197,13 +226,13 @@ const api={
 };
 const state={running:false,sleepUntil:0,now:0,handlers:{},varMap:{},breaks:new Set()};
 
-function compileAndRun(){const src=byId('codeEditor').value;const res=cc.compile(src);const c=byId('compileConsole');c.textContent='';if(res.errors.length){c.textContent=res.errors.join('\n');return;}rom.load(res.ir);cpu.reset();state.handlers=res.handlers;state.varMap=res.varMap;state.sleepUntil=0;state.running=true;c.textContent=`OK. IR=${res.ir.length} instr`;if(state.handlers.setup!=null){cpu.pc=state.handlers.setup;runUntilReturn();}if(state.handlers.loop!=null){sched.task_create(()=>{cpu.call.push(cpu.pc);cpu.pc=state.handlers.loop;},1);}timers.t=[];if(state.handlers.onTimer!=null)timers.create(200,'onTimer');}
+function compileAndRun(){const src=byId('codeEditor').value;const res=cc.compile(src);const c=byId('compileConsole');c.textContent='';if(res.errors.length){c.textContent=res.errors.join('\n');return;}rom.load(res.ir);cpu.reset();state.handlers=res.handlers;state.varMap=res.varMap;state.sleepUntil=0;state.running=true;c.textContent=`OK. IR=${res.ir.length} instr`;if(state.handlers.setup!=null){cpu.pc=state.handlers.setup;runUntilReturn();}sched.tasks=[];if(state.handlers.loop!=null){sched.task_create(()=>{if(cpu.call.length<4){cpu.call.push(cpu.pc);cpu.pc=state.handlers.loop;}},1);}timers.t=[];if(state.handlers.onTimer!=null)timers.create(200,'onTimer');}
 function runUntilReturn(limit=3000){let i=0;while(i++<limit&&!cpu.halted){cpu.step({api,handlers:state.handlers});if(cpu.currentFunc==='return'&&cpu.call.length===0)break;}}
 function stepInstruction(){cpu.step({api,handlers:state.handlers});}
 function stepFunction(){const depth=cpu.call.length;let guard=0;do{cpu.step({api,handlers:state.handlers});if(++guard>1500)break;}while(cpu.call.length>=depth&&!cpu.halted);}
 
 function renderDebug(){byId('regs').textContent=`PC=${cpu.pc}\nSP=${cpu.sp}\nR=${Array.from(cpu.reg).join(', ')}\nZ=${cpu.flags.z}`;byId('stack').textContent=cpu.call.join(' <- ');let hx='';for(let i=0;i<128;i+=16){const row=[...ram.buf.slice(i,i+16)].map(x=>x.toString(16).padStart(2,'0')).join(' ');hx+=i.toString(16).padStart(2,'0')+': '+row+'\n';}byId('mem').textContent=hx;byId('pins').textContent=pins.dump();}
-function syntax(){const s=byId('codeEditor').value.replace(/&/g,'&amp;').replace(/</g,'&lt;');byId('syntax').innerHTML=s.replace(/(\/\/.*)/g,'<span class="cm">$1</span>').replace(/\b(void|int|if|return|include)\b/g,'<span class="kw">$1</span>').replace(/\b(lcd_\w+|keypad_\w+|delay|millis|pinMode|digitalWrite|digitalRead)\b/g,'<span class="fn">$1</span>').replace(/\b(\d+)\b/g,'<span class="num">$1</span>');}
+function syntax(){const s=byId('codeEditor').value.replace(/&/g,'&amp;').replace(/</g,'&lt;');byId('syntax').innerHTML=s.replace(/(\/\/.*)/g,'<span class="cm">$1</span>').replace(/\b(void|int|char|if|while|return|include)\b/g,'<span class="kw">$1</span>').replace(/\b(lcd_\w+|keypad_\w+|cchar_\w+|delay|millis|pinMode|digitalWrite|digitalRead)\b/g,'<span class="fn">$1</span>').replace(/\b(\d+)\b/g,'<span class="num">$1</span>');}
 
 function tick(ts){state.now=ts;keypad.scan(ts);timers.tick(ts,cpu);lcd.tick(ts);if(state.running&&ts>=state.sleepUntil){const hz=+byId('clockHz').value;const ips=Math.max(1,Math.floor(hz/60));for(let i=0;i<ips;i++){if(state.breaks.has(cpu.pc)){state.running=false;runtimeLog('Breakpoint PC '+cpu.pc);break;}cpu.step({api,handlers:state.handlers});}}
 sched.tick(ts);renderDebug();requestAnimationFrame(tick);}requestAnimationFrame(tick);
@@ -220,7 +249,7 @@ byId('saveProgramBtn').onclick=()=>{const n=prompt('Nombre del programa');if(n)f
 byId('loadProgramBtn').onclick=()=>{const n=prompt('Programa a cargar');const d=fs.load(n);if(d){byId('codeEditor').value=d;syntax();}};
 byId('exportProgramsBtn').onclick=()=>{const b=new Blob([JSON.stringify(fs.all(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='programas_embebidos.json';a.click();};
 byId('importProgramsBtn').onclick=()=>{const i=document.createElement('input');i.type='file';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>localStorage.setItem(FS_KEY,ev.target.result);r.readAsText(f)};i.click();};
-byId('examples').onchange=e=>{const v=e.target.value;if(v==='counter')byId('codeEditor').value=`#include <lcd.h>\nint counter=0;\nvoid setup(){lcd_init();}\nvoid loop(){lcd_print(counter);counter=counter+1;delay(120);if(counter>999){ counter=0; }}\nvoid onTimer(){}\nvoid onKeyPress(char key){}`;
+byId('examples').onchange=e=>{const v=e.target.value;if(v==='counter')byId('codeEditor').value=`#include <lcd.h>\n#include <cchar.h>\nint counter=0;\nvoid setup(){lcd_init();cchar_define('A',119);}\nvoid loop(){lcd_print(counter);counter=counter+1;delay(120);if(counter>999){ counter=0; }}\nvoid onTimer(){}\nvoid onKeyPress(char key){}`;
 if(v==='pin')byId('codeEditor').value=`#include <lcd.h>\n#include <keypad.h>\nint stage=0;\nvoid setup(){lcd_init();keypad_init();}\nvoid loop(){lcd_print(stage);delay(60);}\nvoid onKeyPress(char key){ stage=stage+1; }\nvoid onTimer(){}`;
 if(v==='anim')byId('codeEditor').value=`#include <lcd.h>\nint n=0;\nvoid setup(){lcd_init();}\nvoid loop(){lcd_print(n);n=n+1;delay(40);if(n>9){ n=0; }}\nvoid onTimer(){}\nvoid onKeyPress(char key){}`;syntax();};
 
