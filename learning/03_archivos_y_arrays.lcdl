@@ -1,0 +1,10 @@
+LET A:ARR = 0
+APUSH A,'X'
+APUSH A,'Y'
+ALEN A,L
+AGET A,1,O
+WRITE('demo',O)
+READ('demo')
+SHOW 0,'L='+L
+SHOW 1,'O='+O
+STOP

@@ -23,4 +23,21 @@ t('Math ops + arrays',()=>{const m=new VM({ui:{status:()=>{},row:()=>{},print:()
 
 t('Include .lcdh header',()=>{const f=new VFS();f.writeAtomic('/app/h.lcdh',"LET K:NUM = 7");const parser=new Parser(f);const m=new VM({ui:{status:()=>{},row:()=>{},print:()=>{}},parser,fs:f});m.load("@INCLUDE '/app/h.lcdh'\nSET K = K + 1\nSTOP");m.step(50);if(m.vars.K!==8)throw new Error('lcdh include');});
 
+
+
+t('Trig + expr + pointers + while',()=>{const m=new VM({ui:{status:()=>{},row:()=>{},print:()=>{}},parser:new Parser(),fs:new VFS()});m.load(`LET A:NUM = 0
+SET A = 2 + 3*4
+LET S:NUM = SIN(0)
+LET C:NUM = COS(0)
+LET T:NUM = TAN(0)
+LET X:NUM = 7
+REF P,X
+SETPTR P,42
+DEREF P,OUT
+LET I:NUM = 0
+@L
+ADD I,1
+WHILE I < 3 DO @L
+STOP`);m.step(500);if(m.vars.A!==14)throw new Error('expr');if(Math.abs(m.vars.S)>1e-9)throw new Error('sin');if(Math.abs(m.vars.C-1)>1e-9)throw new Error('cos');if(Math.abs(m.vars.T)>1e-9)throw new Error('tan');if(m.vars.X!==42||m.vars.OUT!==42)throw new Error('ptr');if(m.vars.I!==3)throw new Error('while');});
+
 console.log(`RESULT ${pass} passed ${fail} failed`);if(fail) process.exit(1);
