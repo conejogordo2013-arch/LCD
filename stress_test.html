@@ -14,6 +14,14 @@
  test('IF/GOTO LOOP watchdog',()=>{vm.resetAll();vm.maxOpsTotal=300;vm.load("LET N:NUM = 0\n@L\nSET N = N + 1\nIF N > 10 THEN @E\nGOTO @L\n@E\nSTOP");for(let i=0;i<40;i++)vm.step(20);if(vm.vars.N!==11)throw new Error('N!=11');});
  test('TYPE mismatch',()=>{vm.resetAll();vm.load("LET A:NUM = 'X'");vm.step(5);if(vm.state!=='FAULT')throw new Error('Expected FAULT')});
  test('CALL/RET depth',()=>{vm.resetAll();vm.maxDepth=2;vm.load("@A\nCALL @A");vm.step(20);if(vm.state!=='FAULT')throw new Error('Expected FAULT stack')});
+ 
+ test('COUNTER LCDL flow',()=>{vm.resetAll();vm.load("LET CNT:NUM = 0\nLET KEY:STR = ''\n@LOOP\nIF KEY == '1' THEN @INC\nIF KEY == '-' THEN @DEC\nIF KEY == '0' THEN @RST\nGOTO @LOOP\n@INC\nADD CNT,1\nSET KEY = ''\nGOTO @LOOP\n@DEC\nSUB CNT,1\nSET KEY = ''\nGOTO @LOOP\n@RST\nSET CNT = 0\nSET KEY = ''\nGOTO @LOOP");
+ vm.vars.KEY='1'; for(let i=0;i<10;i++)vm.step(20); if(vm.vars.CNT!==1)throw new Error('INC fail');
+ vm.vars.KEY='-'; for(let i=0;i<10;i++)vm.step(20); if(vm.vars.CNT!==0)throw new Error('DEC fail');
+ vm.vars.KEY='1'; for(let i=0;i<10;i++)vm.step(20);
+ vm.vars.KEY='0'; for(let i=0;i<10;i++)vm.step(20); if(vm.vars.CNT!==0)throw new Error('RST fail');
+ });
+
  log(`\nRESULT: ${passed} passed / ${failed} failed`);
 })();
 </script></body></html>
