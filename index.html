@@ -1,328 +1,118 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>7-Segment Terminal</title>
-  <style>
-    :root {
-      --bg: #0d1117;
-      --panel: #161b22;
-      --accent: #238636;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --seg-off: #262b33;
-      --seg-on: #35ff6b;
-      --cell-w: 28px;
-      --cell-h: 46px;
-      --thick: 6px;
-      --gap: 2px;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    .topbar {
-      display: flex;
-      gap: 10px;
-      padding: 10px;
-      background: #010409;
-      border-bottom: 1px solid #30363d;
-      align-items: center;
-    }
-    button, select {
-      background: var(--panel);
-      color: var(--text);
-      border: 1px solid #30363d;
-      padding: 8px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-    button:hover { border-color: var(--accent); }
-    .layout {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 360px 1fr;
-      min-height: 0;
-    }
-    .editor-pane {
-      border-right: 1px solid #30363d;
-      background: var(--panel);
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-    .editor-pane h3, .screen-pane h3 { margin: 8px 12px; font-size: 14px; color: var(--muted); }
-    textarea {
-      margin: 0 10px 10px;
-      width: calc(100% - 20px);
-      flex: 1;
-      resize: none;
-      background: #0b0f14;
-      color: #9effa6;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      padding: 10px;
-      line-height: 1.4;
-    }
-    .screen-pane {
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      overflow: hidden;
-    }
-    .display-wrap {
-      margin: 8px 12px 12px;
-      padding: 12px;
-      background: #05080d;
-      border: 1px solid #30363d;
-      border-radius: 8px;
-      overflow: auto;
-      flex: 1;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(16, var(--cell-w));
-      grid-template-rows: repeat(8, var(--cell-h));
-      gap: var(--gap);
-      width: fit-content;
-      margin: auto;
-    }
-    .cell {
-      width: var(--cell-w);
-      height: var(--cell-h);
-      background: #0b0f14;
-      border-radius: 3px;
-      display: grid;
-      grid-template-columns: var(--thick) 1fr var(--thick);
-      grid-template-rows: var(--thick) 1fr var(--thick) 1fr var(--thick);
-      padding: 1px;
-    }
-    .seg { background: var(--seg-off); transition: background 70ms linear; }
-    .on { background: var(--seg-on); box-shadow: 0 0 5px #00ff62aa; }
-    .a { grid-column: 2; grid-row: 1; border-radius: 3px; }
-    .b { grid-column: 3; grid-row: 2; border-radius: 3px; }
-    .c { grid-column: 3; grid-row: 4; border-radius: 3px; }
-    .d { grid-column: 2; grid-row: 5; border-radius: 3px; }
-    .e { grid-column: 1; grid-row: 4; border-radius: 3px; }
-    .f { grid-column: 1; grid-row: 2; border-radius: 3px; }
-    .g { grid-column: 2; grid-row: 3; border-radius: 3px; }
-    .status { margin: 0 12px 10px; color: var(--muted); font-size: 12px; min-height: 16px; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>7-Segment Mini OS</title>
+<style>
+:root{--bg:#090c10;--panel:#131821;--line:#2a3340;--txt:#d6dde7;--muted:#8a95a6;--on:#41ff7e;--off:#27303c;--w:30px;--h:50px;--t:7px;--g:3px}
+*{box-sizing:border-box} body{margin:0;height:100vh;background:var(--bg);color:var(--txt);font-family:Consolas,monospace;display:flex;flex-direction:column}
+.top{padding:8px;display:flex;gap:8px;border-bottom:1px solid var(--line);background:#06090d}.top button,.top input{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+.main{flex:1;display:grid;grid-template-columns:320px 1fr 320px;min-height:0}
+.pane{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}.pane:last-child{border-right:0}
+.h{font-size:12px;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line)}
+.fsbar{display:flex;gap:6px;padding:8px}.fsbar input{flex:1}.list,.log{margin:0 8px 8px;padding:8px;border:1px solid var(--line);border-radius:6px;background:#0b1016;overflow:auto;flex:1;white-space:pre-wrap}
+textarea{margin:0 8px 8px;flex:1;background:#0b1016;color:#a9ffb8;border:1px solid var(--line);border-radius:6px;padding:8px;resize:none}
+.displayWrap{margin:8px;padding:10px;flex:1;border:1px solid var(--line);border-radius:8px;background:#04070b;overflow:auto}
+.grid{display:grid;gap:var(--g);grid-template-columns:repeat(16,var(--w));grid-template-rows:repeat(8,var(--h));margin:auto;width:fit-content}
+.cell{width:var(--w);height:var(--h);display:grid;grid-template-columns:var(--t) 1fr var(--t);grid-template-rows:var(--t) 1fr var(--t) 1fr var(--t);background:#0b1016;border-radius:3px;padding:1px}
+.seg{background:var(--off);border-radius:4px;opacity:.35;transition:all .06s linear}.on{background:var(--on);opacity:.95;box-shadow:0 0 3px var(--on),0 0 8px color-mix(in srgb,var(--on) 70%,transparent)}
+.a{grid-column:2;grid-row:1}.b{grid-column:3;grid-row:2}.c{grid-column:3;grid-row:4}.d{grid-column:2;grid-row:5}.e{grid-column:1;grid-row:4}.f{grid-column:1;grid-row:2}.g{grid-column:2;grid-row:3}
+.status{padding:0 8px 8px;color:var(--muted);font-size:12px}
+</style>
 </head>
 <body>
-  <div class="topbar">
-    <button id="runBtn">RUN</button>
-    <button id="stopBtn">STOP</button>
-    <button id="resetBtn">RESET</button>
-    <select id="examples">
-      <option value="">Ejemplos...</option>
-      <option value="scroll">Texto desplazándose</option>
-      <option value="counter">Contador</option>
-      <option value="blink">Animación simple</option>
-    </select>
-  </div>
-
-  <div class="layout">
-    <section class="editor-pane">
-      <h3>Editor (lenguaje interno)</h3>
-      <textarea id="code"></textarea>
-    </section>
-    <section class="screen-pane">
-      <h3>Pantalla 7 segmentos (16x8)</h3>
-      <div class="display-wrap"><div id="grid" class="grid"></div></div>
-      <div id="status" class="status"></div>
-    </section>
-  </div>
-
+<div class="top">
+  <button id="run">RUN</button><button id="stop">STOP</button><button id="reset">RESET</button>
+  <label>Velocidad <input id="speed" type="number" min="0.1" step="0.1" value="1" style="width:70px"></label>
+  <label>Color LED <input id="led" type="color" value="#41ff7e"></label>
+</div>
+<div class="main">
+  <section class="pane">
+    <div class="h">IZQUIERDA · FS + EDITOR</div>
+    <div class="fsbar"><input id="path" value="/home/main.seg"><button id="open">open</button><button id="save">save</button></div>
+    <div class="fsbar"><button id="ls">ls</button><button id="cat">cat</button><button id="del">delete</button><button id="runFile">run</button></div>
+    <div id="files" class="list"></div>
+    <textarea id="editor"></textarea>
+  </section>
+  <section class="pane">
+    <div class="h">CENTRO · DISPLAY 7 SEGMENTOS 16x8</div>
+    <div class="displayWrap"><div id="grid" class="grid"></div></div>
+    <div id="status" class="status"></div>
+  </section>
+  <section class="pane">
+    <div class="h">DERECHA · CONSOLA / LOGS</div>
+    <div id="log" class="log"></div>
+  </section>
+</div>
 <script>
-(() => {
-  const W = 16, H = 8;
-  const gridEl = document.getElementById('grid');
-  const codeEl = document.getElementById('code');
-  const statusEl = document.getElementById('status');
-  const runBtn = document.getElementById('runBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const resetBtn = document.getElementById('resetBtn');
-  const examplesEl = document.getElementById('examples');
+(()=>{
+const W=16,H=8,grid=document.getElementById('grid'),editor=document.getElementById('editor'),status=document.getElementById('status'),logEl=document.getElementById('log');
+const SEG={'0':'abcdef','1':'bc','2':'abdeg','3':'abcdg','4':'bcfg','5':'acdfg','6':'acdefg','7':'abc','8':'abcdefg','9':'abcdfg','A':'abcefg','B':'cdefg','C':'adef','D':'bcdeg','E':'adefg','F':'aefg','G':'acdef','H':'bcefg','I':'bc','J':'bcde','K':'efg','L':'def','M':'abcef','N':'abcef','O':'abcdef','P':'abefg','Q':'abcfg','R':'efg','S':'acdfg','T':'defg','U':'bcdef','V':'cde','W':'bcdef','X':'bcefg','Y':'bcdfg','Z':'abdeg','-':'g','_':''};
+const cells=[],buf=Array.from({length:H},()=>Array(W).fill('_')); let cur={x:0,y:0},run=false,stop=false,queue=[],vars={},ctx=null;
+const FSKEY='segmini.fs';
+let fs={ '/home/main.seg':`PRINT HOLA
+SLEEP 300
+CLS
+PRINT MUNDO`, '/home/counter.seg':`VAR N = 0
+LOOP:
+PRINT N
+SLEEP 250
+CLS
+ADD N 1
+IF N == 10 THEN GOTO END
+GOTO LOOP
+END:
+PRINT FIN`, '/home/scroll.seg':`SCROLL RETRO_MINI_OS`, '/home/beep.seg':`BEEP 660 120
+SLEEP 100
+BEEP 880 120
+PRINT BEEP_OK`, '/home/menu.seg':`PRINT MENU
+PRINT 1_CONTADOR
+PRINT 2_SCROLL
+PRINT 3_BEEP`,'/bin/readme.txt':'Mini-OS 7 segmentos'};
+function saveFS(){localStorage.setItem(FSKEY,JSON.stringify(fs))} function loadFS(){try{const d=JSON.parse(localStorage.getItem(FSKEY));if(d)fs=d}catch{}}
+function log(s){logEl.textContent+=s+'\n';logEl.scrollTop=logEl.scrollHeight}
+function init(){const frag=document.createDocumentFragment();for(let i=0;i<W*H;i++){const c=document.createElement('div');c.className='cell';const o={};for(const s of 'abcdefg'){const e=document.createElement('div');e.className='seg '+s;o[s]=e;c.appendChild(e)}cells.push(o);frag.appendChild(c)}grid.appendChild(frag)}
+const id=(x,y)=>y*W+x;
+function draw(x,y,ch){if(x<0||x>=W||y<0||y>=H)return; if(buf[y][x]===ch)return; buf[y][x]=ch;const m=cells[id(x,y)],segs=SEG[ch]??'';for(const s of 'abcdefg'){const on=segs.includes(s);m[s].classList.toggle('on',on);m[s].style.filter=on?`brightness(${0.9+Math.random()*0.15})`:''}}
+function cls(){for(let y=0;y<H;y++)for(let x=0;x<W;x++)draw(x,y,'_');cur={x:0,y:0}}
+function nl(){cur.x=0;cur.y++;if(cur.y>=H){for(let y=1;y<H;y++)for(let x=0;x<W;x++)draw(x,y-1,buf[y][x]);for(let x=0;x<W;x++)draw(x,H-1,'_');cur.y=H-1}}
+function print(t){for(const r of String(t)){if(r==='\n'){nl();continue}draw(cur.x,cur.y,(r===' ')?'_':r.toUpperCase());cur.x++;if(cur.x>=W)nl()}}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms/Number(document.getElementById('speed').value||1)));
+let actx; function beep(freq=440,dur=100){actx=actx||new (window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.type='square';o.frequency.value=freq;g.gain.value=0.04;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+dur/1000)}
+function parse(src){return src.split(/\r?\n/).map((l,i)=>({raw:l.trim(),no:i+1})).filter(x=>x.raw&& !x.raw.startsWith('#'))}
+async function exec(src){queue=parse(src);vars={};ctx={};run=true;stop=false;for(let pc=0;run&&pc<queue.length;pc++){if(stop)break;const line=queue[pc].raw;status.textContent=`L${queue[pc].no}: ${line}`;const U=line.toUpperCase();
+if(U.startsWith('PRINT '))print(line.slice(6));
+else if(U==='CLS')cls();
+else if(U.startsWith('SET ')){const[,x,y,ch]=line.split(/\s+/);draw(+x,+y,(ch||'_').toUpperCase())}
+else if(U.startsWith('SLEEP '))await sleep(Math.max(0,+line.split(/\s+/)[1]||0));
+else if(U.startsWith('BEEP ')){const[,f,d]=line.split(/\s+/);beep(+f||440,+d||120)}
+else if(U.startsWith('SCROLL ')){const text=line.slice(7);for(let i=0;i<text.length+W;i++){for(let y=0;y<H;y++)for(let x=0;x<W-1;x++)draw(x,y,buf[y][x+1]);const ch=text[i]||'_';draw(W-1,0,ch===' '?'_':ch.toUpperCase());await sleep(80)}}
+else if(U.startsWith('GOTO ')){const lab=line.slice(5).trim()+':';const at=queue.findIndex(q=>q.raw.toUpperCase()===lab.toUpperCase());if(at>=0){pc=at;continue}}
+else if(U.startsWith('IF ')&&U.includes(' THEN ')){const [c,t]=line.slice(3).split(/\s+THEN\s+/i);const m=c.match(/^(\w+)\s*==\s*(\S+)$/);if(m){const v=String(vars[m[1]]??'0');if(v===m[2]){queue.splice(pc+1,0,{raw:t,no:queue[pc].no})}}}
+else if(U.startsWith('VAR ')){const m=line.match(/^VAR\s+(\w+)\s*=\s*(.+)$/i);if(m)vars[m[1]]=isNaN(+m[2])?m[2]:+m[2]}
+else if(U.startsWith('ADD ')){const[,n,v]=line.split(/\s+/);vars[n]=(+vars[n]||0)+(+v||0)}
+else if(U==='LS'){log(Object.keys(fs).join('\n'))}
+else if(U.startsWith('CAT ')){const p=line.slice(4).trim();log(fs[p]??'[no existe]')}
+else if(U.startsWith('WRITE ')){const p=line.slice(6).trim();fs[p]=editor.value;saveFS();log('saved '+p)}
+else if(U.startsWith('RUN ')){const p=line.slice(4).trim();if(fs[p])await exec(fs[p])}
+else if(U.startsWith('DELETE ')){const p=line.slice(7).trim();delete fs[p];saveFS();log('deleted '+p)}
+await sleep(10)} run=false;status.textContent=stop?'Detenido':'Listo'}
+function refreshFiles(){document.getElementById('files').textContent=Object.keys(fs).sort().join('\n')}
+function openPath(){const p=document.getElementById('path').value.trim();editor.value=fs[p]??'';log('open '+p)}
+function savePath(){const p=document.getElementById('path').value.trim();fs[p]=editor.value;saveFS();refreshFiles();log('save '+p)}
 
-  const cells = [];
-  const screen = Array.from({ length: H }, () => Array(W).fill('_'));
-  let cursor = { x: 0, y: 0 };
-  let running = false;
-  let stopRequested = false;
-
-  const SEG = {
-    '0': 'abcedf', '1': 'bc', '2': 'abdeg', '3': 'abcdg', '4': 'bcfg',
-    '5': 'acdfg', '6': 'acdefg', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg',
-    'A': 'abcefg', 'B': 'cdefg', 'C': 'adef', 'D': 'bcdeg', 'E': 'adefg',
-    'F': 'aefg', 'G': 'acdef', 'H': 'bcefg', 'I': 'bc', 'J': 'bcde',
-    'K': 'efg', 'L': 'def', 'M': 'abcef', 'N': 'abcef', 'O': 'abcdef',
-    'P': 'abefg', 'Q': 'abcfg', 'R': 'efg', 'S': 'acdfg', 'T': 'defg',
-    'U': 'bcdef', 'V': 'cde', 'W': 'bcdef', 'X': 'bcefg', 'Y': 'bcdfg', 'Z': 'abdeg',
-    '-': 'g', '_': ''
-  };
-
-  function initGrid() {
-    const frag = document.createDocumentFragment();
-    for (let i = 0; i < W * H; i++) {
-      const cell = document.createElement('div');
-      cell.className = 'cell';
-      const segRefs = {};
-      ['a','b','c','d','e','f','g'].forEach(s => {
-        const p = document.createElement('div');
-        p.className = `seg ${s}`;
-        segRefs[s] = p;
-        cell.appendChild(p);
-      });
-      cells.push(segRefs);
-      frag.appendChild(cell);
-    }
-    gridEl.appendChild(frag);
-  }
-
-  function idx(x,y){ return y*W+x; }
-  function applyCharToCell(x,y,ch){
-    if (x<0||x>=W||y<0||y>=H) return;
-    const segs = SEG[ch] ?? SEG['_'];
-    const map = cells[idx(x,y)];
-    for (const k of ['a','b','c','d','e','f','g']) map[k].classList.toggle('on', segs.includes(k));
-  }
-  function setCell(x,y,ch){
-    if (x<0||x>=W||y<0||y>=H) return;
-    ch = (ch || '_').toUpperCase();
-    screen[y][x] = ch;
-    applyCharToCell(x,y,ch);
-  }
-  function clearScreen(){
-    for(let y=0;y<H;y++) for(let x=0;x<W;x++) setCell(x,y,'_');
-    cursor = {x:0,y:0};
-  }
-  function scrollUp(){
-    for (let y=1;y<H;y++) for (let x=0;x<W;x++) setCell(x,y-1,screen[y][x]);
-    for (let x=0;x<W;x++) setCell(x,H-1,'_');
-    cursor.y = H-1; cursor.x = 0;
-  }
-  function newline(){ cursor.x=0; cursor.y++; if(cursor.y>=H) scrollUp(); }
-  function printText(text){
-    for (const raw of text) {
-      const ch = raw === ' ' ? '_' : raw.toUpperCase();
-      if (raw === '\n') { newline(); continue; }
-      setCell(cursor.x,cursor.y,ch);
-      cursor.x++;
-      if(cursor.x>=W) newline();
-    }
-  }
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-  function parseProgram(src){
-    const lines = src.split(/\r?\n/).map((line, i) => ({ txt: line.trim(), no: i+1 })).filter(l => l.txt && !l.txt.startsWith('#'));
-    const labels = new Map();
-    lines.forEach((l,i)=>{ if(l.txt.endsWith(':')) labels.set(l.txt.slice(0,-1).toUpperCase(), i); });
-    return { lines, labels };
-  }
-
-  async function runProgram(src){
-    const { lines, labels } = parseProgram(src);
-    const loopStack = [];
-    let pc = 0;
-    running = true; stopRequested = false;
-    while (running && pc < lines.length) {
-      if (stopRequested) break;
-      const line = lines[pc].txt;
-      if (line.endsWith(':')) { pc++; continue; }
-      statusEl.textContent = `Línea ${lines[pc].no}: ${line}`;
-
-      const up = line.toUpperCase();
-      if (up.startsWith('PRINT ')) printText(line.slice(6));
-      else if (up === 'CLEAR') clearScreen();
-      else if (up === 'SCROLL') scrollUp();
-      else if (up.startsWith('DELAY ')) await sleep(Math.max(0, Number(line.slice(6)) || 0));
-      else if (up.startsWith('SET ')) {
-        const [_, xs, ys, c] = line.split(/\s+/);
-        setCell(Number(xs), Number(ys), c || '_');
-      } else if (up.startsWith('MAP ')) {
-        const [_, ch, segs] = line.split(/\s+/);
-        if (ch && segs) SEG[ch.toUpperCase()] = segs.toLowerCase().replace(/[^a-g]/g,'');
-      } else if (up.startsWith('GOTO ')) {
-        const l = line.slice(5).trim().toUpperCase();
-        if (labels.has(l)) { pc = labels.get(l); continue; }
-      } else if (up.startsWith('IF ') && up.includes(' THEN ')) {
-        const [condRaw, thenRaw] = line.slice(3).split(/\s+THEN\s+/i);
-        const ok = evalCond(condRaw.trim());
-        if (ok) {
-          const temp = thenRaw.trim();
-          lines.splice(pc+1, 0, {txt: temp, no: lines[pc].no});
-        }
-      } else if (up.startsWith('LOOP ')) {
-        const n = Math.max(0, Number(line.slice(5)) || 0);
-        loopStack.push({ start: pc+1, left: n });
-      } else if (up === 'ENDLOOP') {
-        const top = loopStack[loopStack.length-1];
-        if (top) {
-          top.left--;
-          if (top.left > 0) { pc = top.start; continue; }
-          loopStack.pop();
-        }
-      }
-      pc++;
-      await sleep(0);
-    }
-    running = false;
-    statusEl.textContent = stopRequested ? 'Ejecución detenida.' : 'Programa finalizado.';
-  }
-
-  function evalCond(cond){
-    const m = cond.match(/^X\s*([<>=])\s*(\d+)$/i);
-    if (m) return cmp(cursor.x, m[1], Number(m[2]));
-    const n = cond.match(/^Y\s*([<>=])\s*(\d+)$/i);
-    if (n) return cmp(cursor.y, n[1], Number(n[2]));
-    return false;
-  }
-  const cmp = (a,op,b) => op==='<'?a<b:op==='>'?a>b:a===b;
-
-  const examples = {
-    scroll: `PRINT HOLA_MUNDO_EN_7_SEGMENTOS
-DELAY 500
-SCROLL
-DELAY 250
-GOTO INICIO
-INICIO:`,
-    counter: `CLEAR
-LOOP 10
-PRINT CONTADOR_
-PRINT 0123456789
-DELAY 400
-CLEAR
-ENDLOOP`,
-    blink: `LOOP 12
-PRINT PARPADEO
-DELAY 200
-CLEAR
-DELAY 200
-ENDLOOP\nPRINT FIN`
-  };
-
-  examplesEl.addEventListener('change', () => { if (examplesEl.value) codeEl.value = examples[examplesEl.value]; });
-  runBtn.addEventListener('click', async () => { if (!running) await runProgram(codeEl.value); });
-  stopBtn.addEventListener('click', () => { stopRequested = true; running = false; });
-  resetBtn.addEventListener('click', () => { stopRequested = true; running = false; clearScreen(); statusEl.textContent='Pantalla reiniciada.'; });
-
-  initGrid();
-  clearScreen();
-  codeEl.value = `# Programa demo
-PRINT HOLA
-DELAY 500
-CLEAR
-PRINT MUNDO`;
+document.getElementById('run').onclick=()=>!run&&exec(editor.value);
+document.getElementById('stop').onclick=()=>{stop=true;run=false};
+document.getElementById('reset').onclick=()=>{stop=true;run=false;vars={};cls();status.textContent='Reset OK'};
+document.getElementById('ls').onclick=()=>{refreshFiles();log('ls')};
+document.getElementById('cat').onclick=()=>log(fs[document.getElementById('path').value.trim()]??'[no existe]');
+document.getElementById('del').onclick=()=>{const p=document.getElementById('path').value.trim();delete fs[p];saveFS();refreshFiles();log('delete '+p)};
+document.getElementById('runFile').onclick=()=>{const p=document.getElementById('path').value.trim();if(fs[p])exec(fs[p]);};
+document.getElementById('open').onclick=openPath; document.getElementById('save').onclick=savePath;
+document.getElementById('led').oninput=e=>document.documentElement.style.setProperty('--on',e.target.value);
+editor.addEventListener('keydown',e=>{if(e.ctrlKey&&e.key.toLowerCase()==='s'){e.preventDefault();savePath()} if(e.ctrlKey&&e.key.toLowerCase()==='x'){e.preventDefault();editor.blur();log('editor exit')}});
+loadFS();init();cls();refreshFiles();openPath();log('Mini-OS listo');
 })();
 </script>
-</body>
-</html>
+</body></html>
