@@ -67,11 +67,17 @@ if(u.startsWith('SLEEP ')){this.sleepUntil=Date.now()+Math.max(0,Number(t.split(
 if(u==='STATUS'){this.io.ui.status(`RUN PC=${this.pc} OPS=${this.opsTotal}`);this.pc++;return}
 return this.err('EP199',`UNKNOWN ${t}`,ins.line)}
 step(budget=this.maxOpsPerTick){if(this.state!=='RUNNING')return;if(Date.now()<this.sleepUntil)return;let n=0;while(this.state==='RUNNING'&&n<budget){this.stepOne();n++;this.opsTotal++;if(this.opsTotal>this.maxOpsTotal){this.err('ER399','WATCHDOG',this.prog[this.pc]?.line||0);break}if(Date.now()<this.sleepUntil)break}}}
-class Terminal{constructor(display,fs,vm){this.d=display;this.fs=fs;this.vm=vm;this.cli='';this.ev=[];this.lastKeyTs=0;this.bind();this.boot();}
+class Terminal{constructor(display,fs,vm){this.d=display;this.fs=fs;this.vm=vm;this.cli='';this.ev=[];this.lastKeyTs=0;this.cursorOn=true;this.cursorTimer=null;this.bind();this.boot();this.startCursor();}
+startCursor(){if(this.cursorTimer)clearInterval(this.cursorTimer);this.cursorTimer=setInterval(()=>{this.cursorOn=!this.cursorOn;this.renderCli();},350)}
+renderCli(){const max=W-1;const view=this.cli.length>max?this.cli.slice(this.cli.length-max):this.cli;const line=(view+(this.cursorOn?'_':' ')).slice(0,W);this.row(10,line)}
+acceptChar(ch){if(!ch)return;const c=String(ch).toUpperCase();if(c<' '||c>'~')return;this.cli+=c;this.renderCli()}
+backspace(){if(!this.cli.length)return;this.cli=this.cli.slice(0,-1);this.renderCli()}
+submitLine(){this.enqueue({type:'line',data:this.cli});this.cli='';this.renderCli()}
+handleKey(e){const k=e.key||'';if(k==='Enter'){this.submitLine();return true}if(k==='Backspace'){this.backspace();return true}if(k==='Delete'){this.cli='';this.renderCli();return true}if(k==='Escape'){this.cli='';this.renderCli();return true}if(k==='Tab'){this.acceptChar(' ');this.acceptChar(' ');return true}if(k.length===1){this.acceptChar(k);return true}return false}
 status(t){this.d.row(11,String(t).slice(0,W).toUpperCase())}
 row(y,t){this.d.row(y,String(t).toUpperCase())}
 print(t){this.d.print(String(t).toUpperCase());this.d.nl()}
-boot(){this.d.cls();this.row(0,'MODE=BOOT');this.status('IDLE');const b=this.fs.read('/sys/boot.lcdl');if(b.ok)this.runScript('/sys/boot.lcdl')}
+boot(){this.d.cls();this.row(0,'MODE=BOOT');this.status('IDLE');this.renderCli();const b=this.fs.read('/sys/boot.lcdl');if(b.ok)this.runScript('/sys/boot.lcdl')}
 runScript(path){const r=this.fs.read(path);if(!r.ok)return this.print(r.err||'NOFILE');this.vm.load(r.data,path.split('/').pop().toUpperCase());this.status('RUN '+path.split('/').pop().toUpperCase())}
 enqueue(ev){this.ev.push(ev);if(this.ev.length>64)this.ev.shift()}
 processInput(){const ev=this.ev.shift();if(!ev)return;if(ev.type==='line')this.cmd(ev.data)}
@@ -90,14 +96,14 @@ if(u==='RESET'){this.vm.resetAll();return this.status('RESET')}
 if(u==='TRACE'){this.vm.trace=!this.vm.trace;return this.print('TRACE '+(this.vm.trace?'ON':'OFF'))}
 if(u==='STEP'){if(this.vm.state==='PAUSED'||this.vm.state==='IDLE'){if(this.vm.state==='IDLE'&&this.vm.prog.length===0)return this.print('NOPROG');this.vm.state='RUNNING';this.vm.step(1);if(this.vm.state==='RUNNING')this.vm.state='PAUSED';return this.status('STEP')}return this.print('BUSY')}
 this.vm.load(t,'INLINE')}
-bind(){window.addEventListener('keydown',e=>{const now=Date.now();if(now-this.lastKeyTs<20)return;this.lastKeyTs=now;if(e.key==='Enter'){this.d.nl();this.enqueue({type:'line',data:this.cli});this.cli='';return}if(e.key==='Backspace'){this.cli=this.cli.slice(0,-1);return}if(e.key.length===1){this.cli+=e.key;this.d.print(e.key.toUpperCase())}})}}
+bind(){window.addEventListener('keydown',e=>{const now=Date.now();if(now-this.lastKeyTs<12)return;this.lastKeyTs=now;if(this.handleKey(e))e.preventDefault()});}}
 const display=new DisplayDriver(document.getElementById('grid'));const fs=new VFS();const parser=new Parser();const ui={print:()=>{},row:()=>{},status:()=>{}};const vm=new VM({ui,parser});const term=new Terminal(display,fs,vm);ui.print=t=>term.print(t);ui.row=(y,t)=>term.row(y,t);ui.status=t=>term.status(t);
 
 const kbBtn=document.getElementById('kbBtn');const dsp=document.getElementById('display');const kbInput=document.getElementById('kbInput');
 const focusKeyboard=()=>{dsp.focus();kbInput.focus();term.status('KBD ON')};
 kbBtn.addEventListener('click',focusKeyboard);kbBtn.addEventListener('touchstart',()=>setTimeout(focusKeyboard,0),{passive:true});
-kbInput.addEventListener('input',e=>{const v=e.target.value||'';for(const ch of v){term.cli+=ch;term.d.print(ch.toUpperCase())}e.target.value=''});
-kbInput.addEventListener('keydown',e=>{if(e.key==='Enter'){term.d.nl();term.enqueue({type:'line',data:term.cli});term.cli='';e.preventDefault();}if(e.key==='Backspace'&&!term.cli.length)e.preventDefault();});
+kbInput.addEventListener('input',e=>{const v=e.target.value||'';for(const ch of v)term.acceptChar(ch);e.target.value=''});
+kbInput.addEventListener('keydown',e=>{if(term.handleKey(e))e.preventDefault();});
 setInterval(()=>{term.processInput();vm.step();},20);
 })();
 </script></body></html>
