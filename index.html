@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>7-Segment Terminal</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --accent: #238636;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --seg-off: #262b33;
+      --seg-on: #35ff6b;
+      --cell-w: 28px;
+      --cell-h: 46px;
+      --thick: 6px;
+      --gap: 2px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .topbar {
+      display: flex;
+      gap: 10px;
+      padding: 10px;
+      background: #010409;
+      border-bottom: 1px solid #30363d;
+      align-items: center;
+    }
+    button, select {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid #30363d;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); }
+    .layout {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      min-height: 0;
+    }
+    .editor-pane {
+      border-right: 1px solid #30363d;
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .editor-pane h3, .screen-pane h3 { margin: 8px 12px; font-size: 14px; color: var(--muted); }
+    textarea {
+      margin: 0 10px 10px;
+      width: calc(100% - 20px);
+      flex: 1;
+      resize: none;
+      background: #0b0f14;
+      color: #9effa6;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 10px;
+      line-height: 1.4;
+    }
+    .screen-pane {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .display-wrap {
+      margin: 8px 12px 12px;
+      padding: 12px;
+      background: #05080d;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      overflow: auto;
+      flex: 1;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(16, var(--cell-w));
+      grid-template-rows: repeat(8, var(--cell-h));
+      gap: var(--gap);
+      width: fit-content;
+      margin: auto;
+    }
+    .cell {
+      width: var(--cell-w);
+      height: var(--cell-h);
+      background: #0b0f14;
+      border-radius: 3px;
+      display: grid;
+      grid-template-columns: var(--thick) 1fr var(--thick);
+      grid-template-rows: var(--thick) 1fr var(--thick) 1fr var(--thick);
+      padding: 1px;
+    }
+    .seg { background: var(--seg-off); transition: background 70ms linear; }
+    .on { background: var(--seg-on); box-shadow: 0 0 5px #00ff62aa; }
+    .a { grid-column: 2; grid-row: 1; border-radius: 3px; }
+    .b { grid-column: 3; grid-row: 2; border-radius: 3px; }
+    .c { grid-column: 3; grid-row: 4; border-radius: 3px; }
+    .d { grid-column: 2; grid-row: 5; border-radius: 3px; }
+    .e { grid-column: 1; grid-row: 4; border-radius: 3px; }
+    .f { grid-column: 1; grid-row: 2; border-radius: 3px; }
+    .g { grid-column: 2; grid-row: 3; border-radius: 3px; }
+    .status { margin: 0 12px 10px; color: var(--muted); font-size: 12px; min-height: 16px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <button id="runBtn">RUN</button>
+    <button id="stopBtn">STOP</button>
+    <button id="resetBtn">RESET</button>
+    <select id="examples">
+      <option value="">Ejemplos...</option>
+      <option value="scroll">Texto desplazándose</option>
+      <option value="counter">Contador</option>
+      <option value="blink">Animación simple</option>
+    </select>
+  </div>
+
+  <div class="layout">
+    <section class="editor-pane">
+      <h3>Editor (lenguaje interno)</h3>
+      <textarea id="code"></textarea>
+    </section>
+    <section class="screen-pane">
+      <h3>Pantalla 7 segmentos (16x8)</h3>
+      <div class="display-wrap"><div id="grid" class="grid"></div></div>
+      <div id="status" class="status"></div>
+    </section>
+  </div>
+
+<script>
+(() => {
+  const W = 16, H = 8;
+  const gridEl = document.getElementById('grid');
+  const codeEl = document.getElementById('code');
+  const statusEl = document.getElementById('status');
+  const runBtn = document.getElementById('runBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const examplesEl = document.getElementById('examples');
+
+  const cells = [];
+  const screen = Array.from({ length: H }, () => Array(W).fill('_'));
+  let cursor = { x: 0, y: 0 };
+  let running = false;
+  let stopRequested = false;
+
+  const SEG = {
+    '0': 'abcedf', '1': 'bc', '2': 'abdeg', '3': 'abcdg', '4': 'bcfg',
+    '5': 'acdfg', '6': 'acdefg', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg',
+    'A': 'abcefg', 'B': 'cdefg', 'C': 'adef', 'D': 'bcdeg', 'E': 'adefg',
+    'F': 'aefg', 'G': 'acdef', 'H': 'bcefg', 'I': 'bc', 'J': 'bcde',
+    'K': 'efg', 'L': 'def', 'M': 'abcef', 'N': 'abcef', 'O': 'abcdef',
+    'P': 'abefg', 'Q': 'abcfg', 'R': 'efg', 'S': 'acdfg', 'T': 'defg',
+    'U': 'bcdef', 'V': 'cde', 'W': 'bcdef', 'X': 'bcefg', 'Y': 'bcdfg', 'Z': 'abdeg',
+    '-': 'g', '_': ''
+  };
+
+  function initGrid() {
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < W * H; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      const segRefs = {};
+      ['a','b','c','d','e','f','g'].forEach(s => {
+        const p = document.createElement('div');
+        p.className = `seg ${s}`;
+        segRefs[s] = p;
+        cell.appendChild(p);
+      });
+      cells.push(segRefs);
+      frag.appendChild(cell);
+    }
+    gridEl.appendChild(frag);
+  }
+
+  function idx(x,y){ return y*W+x; }
+  function applyCharToCell(x,y,ch){
+    if (x<0||x>=W||y<0||y>=H) return;
+    const segs = SEG[ch] ?? SEG['_'];
+    const map = cells[idx(x,y)];
+    for (const k of ['a','b','c','d','e','f','g']) map[k].classList.toggle('on', segs.includes(k));
+  }
+  function setCell(x,y,ch){
+    if (x<0||x>=W||y<0||y>=H) return;
+    ch = (ch || '_').toUpperCase();
+    screen[y][x] = ch;
+    applyCharToCell(x,y,ch);
+  }
+  function clearScreen(){
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++) setCell(x,y,'_');
+    cursor = {x:0,y:0};
+  }
+  function scrollUp(){
+    for (let y=1;y<H;y++) for (let x=0;x<W;x++) setCell(x,y-1,screen[y][x]);
+    for (let x=0;x<W;x++) setCell(x,H-1,'_');
+    cursor.y = H-1; cursor.x = 0;
+  }
+  function newline(){ cursor.x=0; cursor.y++; if(cursor.y>=H) scrollUp(); }
+  function printText(text){
+    for (const raw of text) {
+      const ch = raw === ' ' ? '_' : raw.toUpperCase();
+      if (raw === '\n') { newline(); continue; }
+      setCell(cursor.x,cursor.y,ch);
+      cursor.x++;
+      if(cursor.x>=W) newline();
+    }
+  }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  function parseProgram(src){
+    const lines = src.split(/\r?\n/).map((line, i) => ({ txt: line.trim(), no: i+1 })).filter(l => l.txt && !l.txt.startsWith('#'));
+    const labels = new Map();
+    lines.forEach((l,i)=>{ if(l.txt.endsWith(':')) labels.set(l.txt.slice(0,-1).toUpperCase(), i); });
+    return { lines, labels };
+  }
+
+  async function runProgram(src){
+    const { lines, labels } = parseProgram(src);
+    const loopStack = [];
+    let pc = 0;
+    running = true; stopRequested = false;
+    while (running && pc < lines.length) {
+      if (stopRequested) break;
+      const line = lines[pc].txt;
+      if (line.endsWith(':')) { pc++; continue; }
+      statusEl.textContent = `Línea ${lines[pc].no}: ${line}`;
+
+      const up = line.toUpperCase();
+      if (up.startsWith('PRINT ')) printText(line.slice(6));
+      else if (up === 'CLEAR') clearScreen();
+      else if (up === 'SCROLL') scrollUp();
+      else if (up.startsWith('DELAY ')) await sleep(Math.max(0, Number(line.slice(6)) || 0));
+      else if (up.startsWith('SET ')) {
+        const [_, xs, ys, c] = line.split(/\s+/);
+        setCell(Number(xs), Number(ys), c || '_');
+      } else if (up.startsWith('MAP ')) {
+        const [_, ch, segs] = line.split(/\s+/);
+        if (ch && segs) SEG[ch.toUpperCase()] = segs.toLowerCase().replace(/[^a-g]/g,'');
+      } else if (up.startsWith('GOTO ')) {
+        const l = line.slice(5).trim().toUpperCase();
+        if (labels.has(l)) { pc = labels.get(l); continue; }
+      } else if (up.startsWith('IF ') && up.includes(' THEN ')) {
+        const [condRaw, thenRaw] = line.slice(3).split(/\s+THEN\s+/i);
+        const ok = evalCond(condRaw.trim());
+        if (ok) {
+          const temp = thenRaw.trim();
+          lines.splice(pc+1, 0, {txt: temp, no: lines[pc].no});
+        }
+      } else if (up.startsWith('LOOP ')) {
+        const n = Math.max(0, Number(line.slice(5)) || 0);
+        loopStack.push({ start: pc+1, left: n });
+      } else if (up === 'ENDLOOP') {
+        const top = loopStack[loopStack.length-1];
+        if (top) {
+          top.left--;
+          if (top.left > 0) { pc = top.start; continue; }
+          loopStack.pop();
+        }
+      }
+      pc++;
+      await sleep(0);
+    }
+    running = false;
+    statusEl.textContent = stopRequested ? 'Ejecución detenida.' : 'Programa finalizado.';
+  }
+
+  function evalCond(cond){
+    const m = cond.match(/^X\s*([<>=])\s*(\d+)$/i);
+    if (m) return cmp(cursor.x, m[1], Number(m[2]));
+    const n = cond.match(/^Y\s*([<>=])\s*(\d+)$/i);
+    if (n) return cmp(cursor.y, n[1], Number(n[2]));
+    return false;
+  }
+  const cmp = (a,op,b) => op==='<'?a<b:op==='>'?a>b:a===b;
+
+  const examples = {
+    scroll: `PRINT HOLA_MUNDO_EN_7_SEGMENTOS
+DELAY 500
+SCROLL
+DELAY 250
+GOTO INICIO
+INICIO:`,
+    counter: `CLEAR
+LOOP 10
+PRINT CONTADOR_
+PRINT 0123456789
+DELAY 400
+CLEAR
+ENDLOOP`,
+    blink: `LOOP 12
+PRINT PARPADEO
+DELAY 200
+CLEAR
+DELAY 200
+ENDLOOP\nPRINT FIN`
+  };
+
+  examplesEl.addEventListener('change', () => { if (examplesEl.value) codeEl.value = examples[examplesEl.value]; });
+  runBtn.addEventListener('click', async () => { if (!running) await runProgram(codeEl.value); });
+  stopBtn.addEventListener('click', () => { stopRequested = true; running = false; });
+  resetBtn.addEventListener('click', () => { stopRequested = true; running = false; clearScreen(); statusEl.textContent='Pantalla reiniciada.'; });
+
+  initGrid();
+  clearScreen();
+  codeEl.value = `# Programa demo
+PRINT HOLA
+DELAY 500
+CLEAR
+PRINT MUNDO`;
+})();
+</script>
+</body>
+</html>
