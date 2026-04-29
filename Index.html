@@ -91,7 +91,7 @@ if(u==='TRACE'){this.vm.trace=!this.vm.trace;return this.print('TRACE '+(this.vm
 if(u==='STEP'){if(this.vm.state==='PAUSED'||this.vm.state==='IDLE'){if(this.vm.state==='IDLE'&&this.vm.prog.length===0)return this.print('NOPROG');this.vm.state='RUNNING';this.vm.step(1);if(this.vm.state==='RUNNING')this.vm.state='PAUSED';return this.status('STEP')}return this.print('BUSY')}
 this.vm.load(t,'INLINE')}
 bind(){window.addEventListener('keydown',e=>{const now=Date.now();if(now-this.lastKeyTs<20)return;this.lastKeyTs=now;if(e.key==='Enter'){this.d.nl();this.enqueue({type:'line',data:this.cli});this.cli='';return}if(e.key==='Backspace'){this.cli=this.cli.slice(0,-1);return}if(e.key.length===1){this.cli+=e.key;this.d.print(e.key.toUpperCase())}})}}
-const display=new DisplayDriver(document.getElementById('grid'));const fs=new VFS();const parser=new Parser();const ui={};const vm=new VM({ui,parser});const term=new Terminal(display,fs,vm);ui.print=t=>term.print(t);ui.row=(y,t)=>term.row(y,t);ui.status=t=>term.status(t);
+const display=new DisplayDriver(document.getElementById('grid'));const fs=new VFS();const parser=new Parser();const ui={print:()=>{},row:()=>{},status:()=>{}};const vm=new VM({ui,parser});const term=new Terminal(display,fs,vm);ui.print=t=>term.print(t);ui.row=(y,t)=>term.row(y,t);ui.status=t=>term.status(t);
 setInterval(()=>{term.processInput();vm.step();},20);
 })();
 </script></body></html>
