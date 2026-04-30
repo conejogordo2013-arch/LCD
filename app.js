@@ -18,7 +18,7 @@ ensurePath(path){if(!SYS.DIRS.some(d=>path===d||path.startsWith(d+'/')))return {
 load(){try{const d=JSON.parse(localStorage.getItem(FSKEY)||'');if(d?.files&&d?.meta)this.db=d}catch{}this.recoverJournal()}
 recoverJournal(){const j=this.db.journal||[];for(const e of j.slice(-JMAX)){if(e.op==='WRITE_BEGIN'&&e.path){delete this.db.files[e.path+'.tmp'];delete this.db.meta[e.path+'.tmp']}if(e.op==='WRITE_ROLLBACK'&&e.path){delete this.db.files[e.path];delete this.db.meta[e.path]}}this.save()}
 save(){localStorage.setItem(FSKEY,JSON.stringify(this.db))}
-seed(){this.writeAtomic('/sys/core.lcdh',"@DEFINE CORE 1\nLET UPT:NUM = 0",'SRC',['RO']);this.writeAtomic('/sys/boot.lcdl',"PRINT 'LCD READY'\nPRINT 'TYPE HELP'\nSHOW 0,'MODE=BOOT'",'SRC',['RO']);this.writeAtomic('/app/watch.lcdl',"LET TMP:NUM = 65\nLET FAN:STATE = 'OK'\n@LOOP\nSHOW 0,'MODE=RUN'\nSHOW 1,'TMP='+TMP\nSHOW 2,'FAN='+FAN\nIF TMP>80 THEN @HOT\nSET TMP = TMP + 1\nSLEEP 150\nGOTO @LOOP\n@HOT\nSET FAN = 'WARN'\nSHOW 9,'ALM=OVHT'\nSLEEP 400\nSET TMP = 65\nSET FAN = 'OK'\nGOTO @LOOP",'SRC');}
+seed(){this.writeAtomic('/sys/core.lcdh',"@DEFINE CORE 1\nLET UPT:NUM = 0",'SRC',['RO']);this.writeAtomic('/sys/boot.lcdl',"PRINT 'LCD READY'\nPRINT 'TYPE HELP'\nSHOW 0,'MODE=BOOT'",'SRC',['RO']);this.writeAtomic('/app/watch.lcdl',"LET TMP:NUM = 65\nLET FAN:STATE = 'OK'\n@LOOP\nSHOW 0,'MODE=RUN'\nSHOW 1,'TMP='+TMP\nSHOW 2,'FAN='+FAN\nIF TMP>80 THEN @HOT\nSET TMP = TMP + 1\nSLEEP 150\nGOTO @LOOP\n@HOT\nSET FAN = 'WARN'\nSHOW 9,'ALM=OVHT'\nSLEEP 400\nSET TMP = 65\nSET FAN = 'OK'\nGOTO @LOOP",'SRC');this.writeAtomic('/app/counter.lcdl',"LET CNT:NUM = 0\nLET KEY:STR = ''\n@LOOP\nSHOW 0,'LCDL COUNTER'\nSHOW 1,'1:+  -:-  0:RESET'\nSHOW 2,'COUNT='+CNT\nIF KEY == '1' THEN @INC\nIF KEY == '-' THEN @DEC\nIF KEY == '0' THEN @RST\nSLEEP 30\nGOTO @LOOP\n@INC\nADD CNT,1\nSET KEY = ''\nGOTO @LOOP\n@DEC\nSUB CNT,1\nSET KEY = ''\nGOTO @LOOP\n@RST\nSET CNT = 0\nSET KEY = ''\nGOTO @LOOP",'SRC');}
 read(path){path=this.norm(path);if(!(path in this.db.files)){this.appendJournal('READ',path,false,'EF404');return {ok:false,err:'EF404'}}this.appendJournal('READ',path,true);return {ok:true,data:this.db.files[path],meta:this.db.meta[path]}}
 list(prefix='/'){prefix=this.norm(prefix);return Object.keys(this.db.files).filter(p=>p.startsWith(prefix)).sort()}
 writeAtomic(path,data,type='SRC',flags=[]){path=this.norm(path);const pchk=this.ensurePath(path);if(!pchk.ok){this.appendJournal('WRITE',path,false,pchk.err);return pchk}if(path.startsWith('/sys/')&&!flags.includes('RO_OVERRIDE')){const ex=this.db.meta[path];if(ex?.flags?.includes('RO'))return {ok:false,err:'EF403'}}
@@ -97,11 +97,12 @@ boot(){this.d.cls();this.row(0,'MODE=BOOT');this.status('IDLE');this.renderCli()
 runScript(path){const r=this.fs.read(path);if(!r.ok)return this.print(r.err||'NOFILE');this.vm.load(r.data,path.split('/').pop().toUpperCase());this.status('RUN '+path.split('/').pop().toUpperCase())}
 enqueue(ev){this.ev.push(ev);if(this.ev.length>64)this.ev.shift()}
 processInput(){const ev=this.ev.shift();if(!ev)return;if(ev.type==='line')this.cmd(ev.data)}
-cmd(c){const t=c.trim();if(!t)return;const u=t.toUpperCase();if(u==='HELP')return this.print('START STOP PAUSE CONT RESET STATUS LS CAT WRITE DEL TRACE STEP JLS');
+cmd(c){const t=c.trim();if(!t)return;const u=t.toUpperCase();if(u==='HELP')return this.print('START STOP PAUSE CONT RESET STATUS LS CAT WRITE DEL TRACE STEP JLS COUNTER');
 if(u==='LS')return this.print(this.fs.list('/').slice(0,8).join(' '));
 if(u==='JLS')return this.print(this.fs.db.journal.slice(-4).map(j=>j.op+':'+j.path).join(' '));
 if(u.startsWith('CAT ')){const r=this.fs.read(t.slice(4).trim());return this.print(r.ok?r.data.slice(0,80):(r.err||'NOFILE'))}
 if(u.startsWith('START ')||u.startsWith('RUN ')){const p=t.split(/\s+/)[1];return this.runScript(p)}
+if(u==='COUNTER')return this.runScript('/app/counter.lcdl');
 if(u.startsWith('WRITE ')){const m=t.match(/^WRITE\s+(\S+)\s+(.+)$/i);if(!m)return this.print('E CMD');const r=this.fs.writeAtomic(m[1],m[2]);return this.print(r.ok?'OK':r.err)}
 if(u.startsWith('DEL ')){const r=this.fs.del(t.slice(4).trim());return this.print(r.ok?'OK':r.err||'NOFILE')}
 if(u==='STATUS')return this.print(`STATE=${this.vm.state} PC=${this.vm.pc} OPS=${this.vm.opsTotal}`);
