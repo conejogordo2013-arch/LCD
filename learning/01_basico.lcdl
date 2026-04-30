@@ -1,0 +1,6 @@
+LET N:NUM = 1
+SHOW 0,'BASICO'
+SHOW 1,'N='+N
+ADD N,4
+SHOW 2,'N='+N
+STOP
