@@ -49,9 +49,11 @@ GOTO @LOOP
 
 ### Utilidades
 - `TIME` imprime timestamp.
-- Matemática: `ADD`, `SUB`, `MUL`, `DIV`, `MOD`, y funciones `SIN(x)`, `COS(x)`, `TAN(x)`, `ABS(x)`, `MIN(a,b...)`, `MAX(a,b...)`.
+- Matemática: `ADD`, `SUB`, `MUL`, `DIV`, `MOD`, y funciones `SIN(x)`, `COS(x)`, `TAN(x)`, `ABS(x)`, `MIN(a,b...)`, `MAX(a,b...)`, `SQRT(x)`, `POW(a,b)`, `LOG(x)`, `EXP(x)`, `FLOOR(x)`, `CEIL(x)`, `ROUND(x)`.
 - Arrays: `APUSH`, `ALEN`, `AGET`.
-- Punteros simples: `REF P,VAR`, `DEREF P,OUT`, `SETPTR P,EXPR`.
+- Punteros simples: `REF P,VAR`, `DEREF P,OUT`, `SETPTR P,EXPR`, y puntero a índice `REFI P,ARR,IDX`.
+- Conversión ASCII/HEX/BIN: `ORD(x)`, `CHR(n)`, `HEX(n)`, `BIN(n)`, `UNHEX(s)`, `UNBIN(s)`.
+- Múltiples instrucciones en una línea con separador ` : ` (excepto líneas `LET ...:TIPO`).
 - Flujo extendido: `WHILE cond DO @LABEL`.
 
 ## 4) Cómo programar bien
@@ -86,3 +88,9 @@ SET C=0
 SET KEY=''
 GOTO @L
 ```
+
+
+## 6) Formato de línea recomendado
+- 1 LET A:NUM = 0
+- 2 SET A = A + 1
+- 3 SHOW 0,'A='+A
